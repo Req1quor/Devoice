@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
-import os
-import shutil
 from pathlib import Path
 from typing import Callable, Optional
 
 import static_ffmpeg
 import torch
 
+from devoice.audio_utils import (
+    apply_spectral_debleed,
+    apply_subbass_filter,
+    apply_true_peak_normalization,
+)
 from devoice.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
@@ -33,17 +36,29 @@ class SeparationEngine:
         model_name: str = "bs_roformer",
         output_dir: Optional[Path | str] = None,
         output_format: str = "WAV",
+        subbass_filter: bool = True,
+        true_peak: bool = True,
+        spectral_debleed: bool = False,
     ) -> None:
         self.model_info = ModelManager.get_model(model_name)
         self.output_dir = Path(output_dir) if output_dir else Path.cwd() / "devoice_output"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.output_format = output_format
 
+        # Pro audio post-processing flags
+        self.subbass_filter = subbass_filter
+        self.true_peak = true_peak
+        self.spectral_debleed = spectral_debleed
+
         # Model cache in user appdata/home
         self.cache_dir = Path.home() / ".cache" / "devoice" / "models"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         self._separator = None
+
+        # Speed optimization for CUDA
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
 
     # ── Device detection ────────────────────────────────────────────────
 
@@ -57,13 +72,13 @@ class SeparationEngine:
         """Return human-readable device name."""
         if torch.cuda.is_available():
             name = torch.cuda.get_device_name(0)
-            return f"⚡ GPU : {name}"
-        return "💻 CPU"
+            return f"● {name} (CUDA)"
+        return "● CPU"
 
     # ── Engine initialization ───────────────────────────────────────────
 
     def _init_separator(self):
-        """Lazy-initialize audio-separator instance."""
+        """Lazy-initialize audio-separator instance with GPU batch tuning."""
         from audio_separator.separator import Separator
 
         # Configure output format
@@ -73,11 +88,28 @@ class SeparationEngine:
         elif "MP3" in self.output_format.upper():
             fmt = "MP3"
 
+        # Tuning batch size for GPU (RTX 3060 12GB has ample VRAM)
+        gpu_batch_size = 4 if torch.cuda.is_available() else 1
+
+        mdx_params = {
+            "hop_length": 1024,
+            "segment_size": 256,
+            "overlap": 0.25,
+            "batch_size": gpu_batch_size,
+            "enable_denoise": False,
+        }
+
+        mdxc_params = {
+            "segment_size": 256,
+            "batch_size": gpu_batch_size,
+            "overlap": 8,
+        }
+
         logger.info(
-            "Initializing Separator for %s (%s) -> format %s",
+            "Initializing Separator for %s (%s) -> batch_size=%d",
             self.model_info.display_name,
             self.model_info.filename,
-            fmt,
+            gpu_batch_size,
         )
 
         self._separator = Separator(
@@ -85,6 +117,8 @@ class SeparationEngine:
             output_dir=str(self.output_dir),
             output_format=fmt,
             normalization_threshold=0.95,
+            mdx_params=mdx_params,
+            mdxc_params=mdxc_params,
         )
 
         logger.info("Loading model %s...", self.model_info.filename)
@@ -97,13 +131,7 @@ class SeparationEngine:
         audio_path: Path | str,
         progress_callback: Optional[Callable[[float, str], None]] = None,
     ) -> dict[str, Path]:
-        """Separate audio into isolated vocals and instrumental tracks.
-
-        Returns
-        -------
-        dict[str, Path]
-            Dictionary containing "vocals", "instrumental" (and "instru") paths.
-        """
+        """Separate audio into isolated vocals and instrumental tracks."""
         audio_path = Path(audio_path)
         if not audio_path.is_file():
             raise FileNotFoundError(f"Fichier audio introuvable : {audio_path}")
@@ -115,21 +143,18 @@ class SeparationEngine:
             self._init_separator()
 
         if progress_callback:
-            progress_callback(0.15, "Séparation en cours (calcul spectral)…")
+            progress_callback(0.20, "Séparation en cours (calcul spectral haute précision)…")
 
-        # Run UVR/RoFormer/MDX separation
         output_files = self._separator.separate(str(audio_path))
 
         if progress_callback:
-            progress_callback(0.90, "Organisation des fichiers séparés…")
+            progress_callback(0.85, "Organisation et post-traitements studio…")
 
         results: dict[str, Path] = {}
 
-        # audio-separator produces files containing "(Vocals)" and "(Instrumental)"
         for fname in output_files:
             file_path = self.output_dir / fname
             if not file_path.exists():
-                # In case relative path was returned
                 cand = Path(fname)
                 if cand.exists():
                     file_path = cand
@@ -141,14 +166,41 @@ class SeparationEngine:
                 results["instrumental"] = file_path
                 results["instru"] = file_path
 
-        # If for any reason stems couldn't be matched by name, map by order
         if "vocals" not in results and len(output_files) >= 1:
             results["vocals"] = self.output_dir / output_files[0]
         if "instrumental" not in results and len(output_files) >= 2:
             results["instrumental"] = self.output_dir / output_files[1]
             results["instru"] = results["instrumental"]
 
+        # ── Pro Audio Post-Processing (Non-destructive) ─────────────────
+        vocals_path = results.get("vocals")
+        instru_path = results.get("instrumental")
+
+        if vocals_path and vocals_path.is_file():
+            # 1. Sub-bass rumble cutoff (< 65 Hz)
+            if self.subbass_filter:
+                try:
+                    apply_subbass_filter(vocals_path, cutoff_hz=65.0)
+                except Exception as exc:
+                    logger.warning("Could not apply sub-bass filter: %s", exc)
+
+            # 2. Spectral de-bleed
+            if self.spectral_debleed and instru_path and instru_path.is_file():
+                try:
+                    apply_spectral_debleed(vocals_path, instru_path, reduction_db=2.5)
+                except Exception as exc:
+                    logger.warning("Could not apply spectral de-bleed: %s", exc)
+
+            # 3. True-Peak Normalization (-1.0 dBFS)
+            if self.true_peak:
+                try:
+                    apply_true_peak_normalization(vocals_path, target_dbfs=-1.0)
+                    if instru_path:
+                        apply_true_peak_normalization(instru_path, target_dbfs=-1.0)
+                except Exception as exc:
+                    logger.warning("Could not apply True-Peak normalization: %s", exc)
+
         if progress_callback:
-            progress_callback(1.0, "Séparation terminée avec succès !")
+            progress_callback(1.0, "Prêt !")
 
         return results

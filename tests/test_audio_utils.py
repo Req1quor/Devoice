@@ -1,9 +1,16 @@
-"""Unit tests for audio utilities (info, normalisation)."""
+"""Unit tests for audio utilities (info, normalisation, pro filters)."""
 
+from pathlib import Path
 import numpy as np
 import pytest
-from pathlib import Path
-from devoice.audio_utils import get_audio_info, normalize_audio, AudioInfo
+import soundfile as sf
+from devoice.audio_utils import (
+    AudioInfo,
+    apply_subbass_filter,
+    apply_true_peak_normalization,
+    get_audio_info,
+    normalize_audio,
+)
 
 
 def test_get_audio_info(sample_audio_path: Path):
@@ -28,3 +35,32 @@ def test_normalize_audio_silent():
     silent = np.zeros(100, dtype=np.float32)
     with pytest.raises(ValueError, match="silent audio"):
         normalize_audio(silent)
+
+
+def test_apply_subbass_filter(tmp_path: Path):
+    """Verify subbass filter preserves valid audio and attenuates sub-bass."""
+    sr = 44100
+    t = np.linspace(0, 1.0, sr, endpoint=False)
+    # 30 Hz sub-bass rumble + 440 Hz vocal tone
+    signal = 0.5 * np.sin(2 * np.pi * 30 * t) + 0.5 * np.sin(2 * np.pi * 440 * t)
+    wav_path = tmp_path / "subbass_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_subbass_filter(wav_path, cutoff_hz=65.0)
+    assert res.exists()
+    filtered_data, _ = sf.read(str(res))
+    assert len(filtered_data) == sr
+
+
+def test_apply_true_peak_normalization(tmp_path: Path):
+    """Verify true peak normalization scales audio to target dBFS."""
+    sr = 44100
+    t = np.linspace(0, 0.5, int(sr * 0.5), endpoint=False)
+    signal = 0.2 * np.sin(2 * np.pi * 1000 * t)  # peak is 0.2
+    wav_path = tmp_path / "peak_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_true_peak_normalization(wav_path, target_dbfs=-1.0)
+    norm_data, _ = sf.read(str(res))
+    expected_peak = 10.0 ** (-1.0 / 20.0)
+    assert np.isclose(np.max(np.abs(norm_data)), expected_peak, atol=0.01)

@@ -26,8 +26,9 @@ class SeparationJob:
     input_path: Path
     output_dir: Optional[Path] = None
     output_format: str = "WAV (16-bit)"
-    normalize: bool = False
-    stems_to_save: Optional[list[str]] = field(default_factory=lambda: ["vocals", "instrumental"])
+    subbass_filter: bool = True
+    true_peak: bool = True
+    spectral_debleed: bool = False
 
 
 # ── Result descriptor ──────────────────────────────────────────────────────
@@ -76,14 +77,18 @@ class SeparationWorker(QThread):
         model_name: str = "bs_roformer",
         output_format: str = "WAV (16-bit)",
         output_dir: Optional[Path | str] = None,
-        normalize: bool = False,
+        subbass_filter: bool = True,
+        true_peak: bool = True,
+        spectral_debleed: bool = False,
         parent: Optional[Any] = None,
     ) -> None:
         super().__init__(parent)
         self._model_name = model_name
         self._output_format = output_format
         self._output_dir = Path(output_dir) if output_dir else None
-        self._normalize = normalize
+        self._subbass_filter = subbass_filter
+        self._true_peak = true_peak
+        self._spectral_debleed = spectral_debleed
         self._cancel_requested = False
 
         if jobs is not None:
@@ -94,7 +99,9 @@ class SeparationWorker(QThread):
                     input_path=Path(f),
                     output_dir=self._output_dir,
                     output_format=self._output_format,
-                    normalize=self._normalize,
+                    subbass_filter=self._subbass_filter,
+                    true_peak=self._true_peak,
+                    spectral_debleed=self._spectral_debleed,
                 )
                 for f in files
             ]
@@ -102,7 +109,6 @@ class SeparationWorker(QThread):
             self._jobs = []
 
     def cancel(self) -> None:
-        """Cancel execution cleanly."""
         self._cancel_requested = True
 
     def request_cancel(self) -> None:
@@ -164,6 +170,9 @@ class SeparationWorker(QThread):
                 model_name=self._model_name,
                 output_dir=out_dir,
                 output_format=job.output_format,
+                subbass_filter=job.subbass_filter,
+                true_peak=job.true_peak,
+                spectral_debleed=job.spectral_debleed,
             )
 
             stems = engine.separate(job.input_path, progress_callback=progress_callback)
