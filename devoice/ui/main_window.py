@@ -96,9 +96,9 @@ class MainWindow(QMainWindow):
 
         settings_row.addWidget(QLabel("Mode :"))
         self.model_combo = QComboBox()
-        self.model_combo.addItem("Rapide", "htdemucs")
-        self.model_combo.addItem("Qualité Max", "htdemucs_ft")
-        self.model_combo.setCurrentIndex(1)
+        self.model_combo.addItem("Rapide (Recommandé)", "htdemucs")
+        self.model_combo.addItem("Qualité Max (Plus lent)", "htdemucs_ft")
+        self.model_combo.setCurrentIndex(0)
         settings_row.addWidget(self.model_combo)
 
         settings_row.addSpacing(16)

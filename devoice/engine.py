@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 import soundfile as sf
 import torch
 import torchaudio as ta
-from demucs.apply import apply_model
+from demucs.apply import BagOfModels, apply_model
 from demucs.audio import AudioFile, convert_audio as demucs_convert_audio
 from demucs.pretrained import get_model
 
@@ -116,7 +116,6 @@ class SeparationEngine:
         if wav is None:
             try:
                 data, sr = sf.read(str(track_path), dtype="float32")
-                # Ensure shape is [channels, samples]
                 if data.ndim == 1:
                     raw_wav = torch.from_numpy(data).unsqueeze(0)
                 else:
@@ -131,15 +130,19 @@ class SeparationEngine:
 
     # ── separation ──────────────────────────────────────────────────────
 
-    def separate(self, audio_path: Path | str) -> dict[str, np.ndarray]:
+    def separate(
+        self,
+        audio_path: Path | str,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> dict[str, np.ndarray]:
         """Run source separation on audio_path.
 
-        Returns
-        -------
-        dict[str, np.ndarray]
-            Mapping stem name -> audio array of shape (channels, samples).
-            Always includes "vocals", all individual model stems,
-            and a synthetic "instrumental" stem (sum of all non-vocal stems).
+        Parameters
+        ----------
+        audio_path:
+            Path to audio file.
+        progress_callback:
+            Optional function called with fraction (0.0 to 1.0) as separation progresses.
         """
         audio_path = Path(audio_path)
         if not audio_path.is_file():
@@ -151,15 +154,46 @@ class SeparationEngine:
         ref = wav.mean(0)
         wav = (wav - ref.mean()) / (ref.std() + 1e-8)
 
-        with torch.no_grad():
-            sources = apply_model(
-                self._model,
-                wav[None],
-                device=self._device,
-                shifts=self._shifts,
-                overlap=self._overlap,
-                split=True,
-            )[0]
+        # Hook tqdm in demucs.apply to report real-time chunk progress
+        import demucs.apply
+        orig_tqdm = demucs.apply.tqdm.tqdm
+
+        total_submodels = len(self._model.models) if isinstance(self._model, BagOfModels) else 1
+        current_submodel = [0]
+
+        class ProgressTqdmWrapper:
+            def __init__(self, iterable, *args, **kwargs):
+                self.iterable = iterable
+                self.total_chunks = len(iterable) if hasattr(iterable, "__len__") else 1
+                self.processed_chunks = 0
+
+            def __iter__(self):
+                for item in self.iterable:
+                    yield item
+                    self.processed_chunks += 1
+                    if progress_callback:
+                        sub_pct = self.processed_chunks / max(1, self.total_chunks)
+                        overall_pct = (current_submodel[0] + sub_pct) / total_submodels
+                        progress_callback(min(0.99, max(0.01, overall_pct)))
+                current_submodel[0] += 1
+
+        try:
+            demucs.apply.tqdm.tqdm = ProgressTqdmWrapper
+            with torch.no_grad():
+                sources = apply_model(
+                    self._model,
+                    wav[None],
+                    device=self._device,
+                    shifts=self._shifts,
+                    overlap=self._overlap,
+                    split=True,
+                    progress=True,
+                )[0]
+        finally:
+            demucs.apply.tqdm.tqdm = orig_tqdm
+
+        if progress_callback:
+            progress_callback(1.0)
 
         # De-standardize
         sources = sources * (ref.std() + 1e-8) + ref.mean()

@@ -164,10 +164,15 @@ class SeparationWorker(QThread):
             self.file_started.emit(filename)
 
             step_pct = int((idx / total) * 100)
-            self.progress.emit(step_pct, f"Traitement de {filename}…")
-            self.progress_update.emit(idx + 1, total, f"Traitement de {filename}…")
+            self.progress.emit(step_pct, f"Séparation de {filename}…")
+            self.progress_update.emit(idx + 1, total, f"Séparation de {filename}…")
 
-            result = self._process_job(engine, job)
+            def on_chunk_progress(fraction: float):
+                file_pct = int(fraction * 100)
+                overall_pct = int(((idx + fraction) / total) * 100)
+                self.progress.emit(overall_pct, f"Séparation de {filename}… ({file_pct}%)")
+
+            result = self._process_job(engine, job, progress_callback=on_chunk_progress)
 
             if result.success:
                 # Convert results paths to str/Path dict with aliases
@@ -188,7 +193,10 @@ class SeparationWorker(QThread):
     # ── per-job pipeline ────────────────────────────────────────────────
 
     def _process_job(
-        self, engine: SeparationEngine, job: SeparationJob
+        self,
+        engine: SeparationEngine,
+        job: SeparationJob,
+        progress_callback: Optional[Any] = None,
     ) -> SeparationResult:
         """Run separation + format export."""
         try:
@@ -197,8 +205,8 @@ class SeparationWorker(QThread):
             )
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            # Separate into raw stems (channels x samples)
-            stems = engine.separate(job.input_path)
+            # Separate into raw stems (channels x samples) with live progress
+            stems = engine.separate(job.input_path, progress_callback=progress_callback)
 
             names_to_save = (
                 job.stems_to_save
