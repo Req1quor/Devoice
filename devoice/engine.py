@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -79,6 +81,9 @@ class SeparationEngine:
 
     def _init_separator(self):
         """Lazy-initialize audio-separator instance with GPU batch tuning."""
+        # Ensure static ffmpeg is on PATH right before initializing
+        static_ffmpeg.add_paths()
+
         from audio_separator.separator import Separator
 
         # Configure output format
@@ -88,7 +93,6 @@ class SeparationEngine:
         elif "MP3" in self.output_format.upper():
             fmt = "MP3"
 
-        # Tuning batch size for GPU (RTX 3060 12GB has ample VRAM)
         gpu_batch_size = 4 if torch.cuda.is_available() else 1
 
         mdx_params = {
@@ -143,9 +147,42 @@ class SeparationEngine:
             self._init_separator()
 
         if progress_callback:
-            progress_callback(0.20, "Séparation en cours (calcul spectral haute précision)…")
+            progress_callback(0.15, "Standardisation audio…")
 
-        output_files = self._separator.separate(str(audio_path))
+        # Pre-convert to a clean PCM WAV to eliminate any audioread/ID3/EOF tag issues
+        clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
+        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+        conv_cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-i",
+            str(audio_path),
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            "-c:a",
+            "pcm_s16le",
+            str(clean_input),
+        ]
+        try:
+            subprocess.run(conv_cmd, capture_output=True, check=True)
+            target_input = clean_input
+        except Exception as exc:
+            logger.warning("Direct WAV conversion failed (%s), using original file", exc)
+            target_input = audio_path
+
+        if progress_callback:
+            progress_callback(0.25, "Séparation en cours (calcul spectral haute précision)…")
+
+        try:
+            output_files = self._separator.separate(str(target_input))
+        finally:
+            if clean_input.exists():
+                try:
+                    clean_input.unlink()
+                except Exception:
+                    pass
 
         if progress_callback:
             progress_callback(0.85, "Organisation et post-traitements studio…")
@@ -159,7 +196,17 @@ class SeparationEngine:
                 if cand.exists():
                     file_path = cand
 
-            lower_name = fname.lower()
+            # Rename if clean prefix exists
+            if file_path.exists() and "_clean_" in file_path.name:
+                cleaned_name = file_path.name.replace("_clean_", "")
+                dest_path = file_path.parent / cleaned_name
+                try:
+                    shutil.move(str(file_path), str(dest_path))
+                    file_path = dest_path
+                except Exception:
+                    pass
+
+            lower_name = file_path.name.lower()
             if "(vocals)" in lower_name or "vocals" in lower_name:
                 results["vocals"] = file_path
             elif "(instrumental)" in lower_name or "instrumental" in lower_name or "inst" in lower_name:
