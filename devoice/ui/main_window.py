@@ -234,7 +234,7 @@ class MainWindow(QMainWindow):
         """
         self.status_label.setText(f"✅ {filename} terminé")
         vocals_path = Path(results.get("vocals", ""))
-        instru_path = Path(results.get("instru", ""))
+        instru_path = Path(results.get("instru", "") or results.get("instrumental", ""))
         if vocals_path.exists() and instru_path.exists():
             self.audio_player.set_results(vocals_path, instru_path)
 

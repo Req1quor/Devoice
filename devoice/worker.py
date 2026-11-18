@@ -6,8 +6,10 @@ import logging
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
+import numpy as np
+import soundfile as sf
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from devoice.audio_utils import convert_audio, normalize_audio
@@ -22,22 +24,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SeparationJob:
-    """Describes one file to be separated.
-
-    Parameters
-    ----------
-    input_path:
-        Path to the source audio file.
-    output_dir:
-        Directory for the output stems.  ``None`` → sibling
-        ``devoice_output/`` directory next to the input file.
-    output_format:
-        Display-name key into :data:`devoice.config.OUTPUT_FORMATS`.
-    normalize:
-        Whether to peak-normalise the output stems.
-    stems_to_save:
-        Which stems to write.  ``None`` → vocals + instrumental.
-    """
+    """Describes one file to be separated."""
 
     input_path: Path
     output_dir: Optional[Path] = None
@@ -63,161 +50,209 @@ class SeparationResult:
 
 
 class SeparationWorker(QThread):
-    """QThread that processes one or more :class:`SeparationJob` items.
+    """QThread that processes one or more audio files asynchronously.
 
-    Signals
-    -------
+    Signals (Primary UI)
+    -------------------
+    progress(int, str)
+        ``(percentage, status_message)``
+    file_started(str)
+        ``(filename)``
+    file_completed(str, dict)
+        ``(filename, {"vocals": Path, "instru": Path, "instrumental": Path})``
+    file_error(str, str)
+        ``(filename, error_message)``
+    all_completed()
+        Emitted when every file has been processed.
+
+    Signals (Batch / Object API)
+    ----------------------------
     progress_update(int, int, str)
         ``(current_index, total_jobs, status_message)``
-    job_completed(SeparationResult)
-        Emitted after each individual job finishes (success **or** failure).
-    all_completed(list)
-        Emitted once when every job in the batch has been processed.
-        Payload is a ``list[SeparationResult]``.
+    job_completed(object)
+        ``SeparationResult``
     error_occurred(str)
-        Emitted for fatal engine-level errors that abort the whole batch.
+        Fatal engine-level error message
     """
 
+    # Primary UI signals
+    progress = pyqtSignal(int, str)
+    file_started = pyqtSignal(str)
+    file_completed = pyqtSignal(str, dict)
+    file_error = pyqtSignal(str, str)
+    all_completed = pyqtSignal()
+
+    # Legacy/Extended signals
     progress_update = pyqtSignal(int, int, str)
-    job_completed = pyqtSignal(object)  # SeparationResult
-    all_completed = pyqtSignal(list)  # list[SeparationResult]
-    error_occurred = pyqtSignal(str)  # error message
+    job_completed = pyqtSignal(object)
+    error_occurred = pyqtSignal(str)
 
     def __init__(
         self,
-        jobs: list[SeparationJob],
+        files: Optional[list[Path | str]] = None,
+        jobs: Optional[list[SeparationJob]] = None,
         model_name: str = "htdemucs",
-        parent: object | None = None,
+        output_format: str = "WAV (16-bit)",
+        output_dir: Optional[Path | str] = None,
+        normalize: bool = False,
+        parent: Optional[Any] = None,
     ) -> None:
         super().__init__(parent)
-        self._jobs = jobs
         self._model_name = model_name
+        self._output_format = output_format
+        self._output_dir = Path(output_dir) if output_dir else None
+        self._normalize = normalize
         self._cancel_requested = False
+
+        if jobs is not None:
+            self._jobs = jobs
+        elif files is not None:
+            self._jobs = [
+                SeparationJob(
+                    input_path=Path(f),
+                    output_dir=self._output_dir,
+                    output_format=self._output_format,
+                    normalize=self._normalize,
+                )
+                for f in files
+            ]
+        else:
+            self._jobs = []
 
     # ── control ─────────────────────────────────────────────────────────
 
+    def cancel(self) -> None:
+        """Cancel execution cleanly."""
+        self._cancel_requested = True
+
     def request_cancel(self) -> None:
-        """Ask the worker to stop after the current job finishes."""
+        """Alias for cancel()."""
         self._cancel_requested = True
 
     @property
     def is_cancel_requested(self) -> bool:
-        """Whether cancellation has been requested."""
         return self._cancel_requested
 
     # ── thread entry point ──────────────────────────────────────────────
 
-    def run(self) -> None:  # noqa: C901 (complexity justified by batch loop)
-        """Execute the separation pipeline on each queued job."""
-        results: list[SeparationResult] = []
+    def run(self) -> None:
         total = len(self._jobs)
-
-        # Build the engine once for the entire batch
-        try:
-            self.progress_update.emit(0, total, "Loading model…")
-            engine = SeparationEngine(model_name=self._model_name)
-        except Exception as exc:
-            msg = f"Failed to load model '{self._model_name}': {exc}"
-            logger.error(msg)
-            self.error_occurred.emit(msg)
+        if total == 0:
+            self.all_completed.emit()
             return
 
+        # 1. Load model
+        try:
+            self.progress.emit(0, "Chargement du modèle…")
+            self.progress_update.emit(0, total, "Chargement du modèle…")
+            engine = SeparationEngine(model_name=self._model_name)
+        except Exception as exc:
+            msg = f"Impossible de charger le modèle '{self._model_name}': {exc}"
+            logger.error(msg)
+            self.file_error.emit("Moteur", msg)
+            self.error_occurred.emit(msg)
+            self.all_completed.emit()
+            return
+
+        # 2. Process each job
         for idx, job in enumerate(self._jobs):
             if self._cancel_requested:
-                logger.info("Cancellation requested — stopping batch.")
+                logger.info("Annulation demandée par l'utilisateur.")
                 break
 
-            file_label = job.input_path.name
-            self.progress_update.emit(
-                idx + 1,
-                total,
-                f"Processing {file_label} ({idx + 1}/{total})…",
-            )
+            filename = job.input_path.name
+            self.file_started.emit(filename)
+
+            step_pct = int((idx / total) * 100)
+            self.progress.emit(step_pct, f"Traitement de {filename}…")
+            self.progress_update.emit(idx + 1, total, f"Traitement de {filename}…")
 
             result = self._process_job(engine, job)
-            results.append(result)
-            self.job_completed.emit(result)
 
-        self.all_completed.emit(results)
+            if result.success:
+                # Convert results paths to str/Path dict with aliases
+                res_dict = {k: str(v) for k, v in result.output_files.items()}
+                if "instrumental" in res_dict:
+                    res_dict["instru"] = res_dict["instrumental"]
+                self.file_completed.emit(filename, res_dict)
+                self.job_completed.emit(result)
+            else:
+                self.file_error.emit(filename, result.error_message)
+                self.job_completed.emit(result)
+
+            end_pct = int(((idx + 1) / total) * 100)
+            self.progress.emit(end_pct, f"{filename} terminé")
+
+        self.all_completed.emit()
 
     # ── per-job pipeline ────────────────────────────────────────────────
 
     def _process_job(
         self, engine: SeparationEngine, job: SeparationJob
     ) -> SeparationResult:
-        """Run separation + optional normalisation + format conversion."""
+        """Run separation + format export."""
         try:
-            # Resolve output directory
             out_dir = job.output_dir or (
                 job.input_path.parent / DEFAULT_OUTPUT_SUBDIR
             )
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            # 1. Separate into raw stems (WAV float)
+            # Separate into raw stems (channels x samples)
             stems = engine.separate(job.input_path)
 
-            # 2. Determine which stems to save
             names_to_save = (
                 job.stems_to_save
                 if job.stems_to_save is not None
-                else list(stems.keys())
+                else ["vocals", "instrumental"]
             )
 
-            # 3. Optionally normalise, then write to disk
-            fmt_info = OUTPUT_FORMATS.get(job.output_format)
-            if fmt_info is None:
-                raise ValueError(
-                    f"Unknown output format '{job.output_format}'. "
-                    f"Available: {', '.join(OUTPUT_FORMATS)}"
-                )
-
+            fmt_info = OUTPUT_FORMATS.get(job.output_format, OUTPUT_FORMATS.get("WAV (16-bit)", {}))
+            target_ext = fmt_info.get("ext", ".wav")
+            bit_depth = fmt_info.get("bit_depth", 16)
+            bitrate = fmt_info.get("bitrate", None)
             sr = engine.sample_rate
+
             output_files: dict[str, Path] = {}
 
             for stem_name in names_to_save:
                 arr = stems.get(stem_name)
                 if arr is None:
-                    logger.warning(
-                        "Requested stem '%s' not produced — skipping.",
-                        stem_name,
-                    )
                     continue
 
-                # Normalise if requested
                 if job.normalize:
                     arr = normalize_audio(arr)
 
-                # Write an intermediate WAV first (lossless)
-                import soundfile as _sf
-
-                temp_wav = out_dir / f"{job.input_path.stem}_{stem_name}.wav"
-                _sf.write(str(temp_wav), arr.T, sr, subtype="FLOAT")
-
-                target_ext = fmt_info["ext"]
                 final_path = out_dir / f"{job.input_path.stem}_{stem_name}{target_ext}"
 
+                # Native soundfile writing for WAV and FLAC (no ffmpeg needed)
                 if target_ext == ".wav":
-                    # Re-encode to the requested bit depth directly
-                    convert_audio(
-                        temp_wav,
-                        final_path,
-                        bit_depth=fmt_info.get("bit_depth"),
-                    )
-                    # Remove temp only when different from final
-                    if temp_wav != final_path and temp_wav.exists():
-                        temp_wav.unlink()
+                    subtype = "PCM_16"
+                    if bit_depth == 24:
+                        subtype = "PCM_24"
+                    elif bit_depth == 32:
+                        subtype = "FLOAT"
+                    sf.write(str(final_path), arr.T, sr, subtype=subtype)
+
+                elif target_ext == ".flac":
+                    subtype = "PCM_24" if bit_depth == 24 else "PCM_16"
+                    sf.write(str(final_path), arr.T, sr, format="FLAC", subtype=subtype)
+
                 else:
-                    convert_audio(
-                        temp_wav,
-                        final_path,
-                        bitrate=fmt_info.get("bitrate"),
-                        bit_depth=fmt_info.get("bit_depth"),
-                    )
-                    if temp_wav.exists():
-                        temp_wav.unlink()
+                    # Lossy formats like MP3/OGG: write temp WAV then convert
+                    temp_wav = out_dir / f"{job.input_path.stem}_{stem_name}_temp.wav"
+                    sf.write(str(temp_wav), arr.T, sr, subtype="PCM_16")
+                    try:
+                        convert_audio(
+                            temp_wav,
+                            final_path,
+                            bitrate=bitrate,
+                            bit_depth=bit_depth,
+                        )
+                    finally:
+                        if temp_wav.exists():
+                            temp_wav.unlink()
 
                 output_files[stem_name] = final_path
-                logger.info("Wrote %s → %s", stem_name, final_path)
 
             return SeparationResult(
                 job=job,
@@ -227,9 +262,7 @@ class SeparationWorker(QThread):
 
         except Exception as exc:
             tb = traceback.format_exc()
-            logger.error(
-                "Job failed for %s: %s\n%s", job.input_path, exc, tb
-            )
+            logger.error("Job failed for %s: %s\n%s", job.input_path, exc, tb)
             return SeparationResult(
                 job=job,
                 success=False,

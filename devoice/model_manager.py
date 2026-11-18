@@ -48,6 +48,9 @@ _REGISTRY: dict[str, ModelInfo] = {
     ),
 }
 
+# Public alias matching UI imports
+MODELS: dict[str, ModelInfo] = _REGISTRY
+
 
 class ModelManager:
     """Discover, cache, and serve Demucs model metadata.
@@ -71,6 +74,11 @@ class ModelManager:
     def available_models() -> list[ModelInfo]:
         """Return the list of all registered models."""
         return list(_REGISTRY.values())
+
+    @staticmethod
+    def list_models() -> list[str]:
+        """Return list of model names registered."""
+        return list(_REGISTRY.keys())
 
     @staticmethod
     def get_model(name: str) -> ModelInfo:
