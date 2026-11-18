@@ -1,212 +1,154 @@
-"""Core separation engine wrapping Demucs v4."""
+"""State-of-the-art separation engine powered by UVR / BS-RoFormer / MDX-Net."""
 
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 from pathlib import Path
 from typing import Callable, Optional
 
-import numpy as np
-import soundfile as sf
+import static_ffmpeg
 import torch
-import torchaudio as ta
-from demucs.apply import BagOfModels, apply_model
-from demucs.audio import AudioFile, convert_audio as demucs_convert_audio
-from demucs.pretrained import get_model
 
 from devoice.model_manager import ModelManager
 
 logger = logging.getLogger(__name__)
 
+# Ensure portable FFmpeg is on PATH
+try:
+    static_ffmpeg.add_paths()
+except Exception as exc:
+    logger.warning("Could not add static-ffmpeg paths: %s", exc)
+
 
 class SeparationEngine:
-    """High-level wrapper around Demucs v4 models.
+    """Unified engine for RoFormer and MDX-Net source separation.
 
-    Automatically selects CUDA when available, otherwise falls back to CPU.
-    Uses shifts=1 and overlap=0.25 for studio quality with optimal speed.
+    Supports automatic GPU/CUDA acceleration with graceful CPU fallback.
     """
 
     def __init__(
         self,
-        model_name: str = "htdemucs",
-        device: Optional[str] = None,
-        shifts: int = 1,
-        overlap: float = 0.25,
+        model_name: str = "bs_roformer",
+        output_dir: Optional[Path | str] = None,
+        output_format: str = "WAV",
     ) -> None:
-        ModelManager.get_model(model_name)
+        self.model_info = ModelManager.get_model(model_name)
+        self.output_dir = Path(output_dir) if output_dir else Path.cwd() / "devoice_output"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.output_format = output_format
 
-        self._device: str = device or self._detect_device()
-        self._model_name: str = model_name
-        self._shifts: int = shifts
-        self._overlap: float = overlap
+        # Model cache in user appdata/home
+        self.cache_dir = Path.home() / ".cache" / "devoice" / "models"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.info(
-            "Initialising SeparationEngine model=%s device=%s shifts=%d overlap=%.2f",
-            model_name,
-            self._device,
-            shifts,
-            overlap,
-        )
+        self._separator = None
 
-        self._model = get_model(name=model_name)
-        self._model.to(self._device)
-        self._model.eval()
-
-    @property
-    def model_name(self) -> str:
-        return self._model_name
-
-    @property
-    def device(self) -> str:
-        return self._device
-
-    @property
-    def sample_rate(self) -> int:
-        return self._model.samplerate
-
-    @property
-    def audio_channels(self) -> int:
-        return self._model.audio_channels
-
-    @property
-    def sources(self) -> list[str]:
-        return list(self._model.sources)
-
-    # ── device helpers ──────────────────────────────────────────────────
-
-    @staticmethod
-    def _detect_device() -> str:
-        if torch.cuda.is_available():
-            dev = "cuda"
-            logger.info("CUDA available — using GPU: %s", torch.cuda.get_device_name(0))
-        else:
-            dev = "cpu"
-            logger.info("CUDA not available — falling back to CPU.")
-        return dev
+    # ── Device detection ────────────────────────────────────────────────
 
     @staticmethod
     def is_cuda_available() -> bool:
+        """Check if CUDA-enabled GPU is accessible."""
         return torch.cuda.is_available()
 
-    # ── track loading ───────────────────────────────────────────────────
+    @property
+    def device_info(self) -> str:
+        """Return human-readable device name."""
+        if torch.cuda.is_available():
+            name = torch.cuda.get_device_name(0)
+            return f"⚡ GPU : {name}"
+        return "💻 CPU"
 
-    def _load_track(self, track_path: Path) -> torch.Tensor:
-        """Load audio track and resample/channel-match to model specifications."""
-        wav = None
+    # ── Engine initialization ───────────────────────────────────────────
 
-        # 1. Try Demucs AudioFile (FFmpeg backend) if available
-        try:
-            wav = AudioFile(track_path).read(
-                streams=0,
-                samplerate=self.sample_rate,
-                channels=self.audio_channels,
-            )
-        except Exception:
-            wav = None
+    def _init_separator(self):
+        """Lazy-initialize audio-separator instance."""
+        from audio_separator.separator import Separator
 
-        # 2. Try torchaudio backend
-        if wav is None:
-            try:
-                raw_wav, sr = ta.load(str(track_path))
-                wav = demucs_convert_audio(raw_wav, sr, self.sample_rate, self.audio_channels)
-            except Exception:
-                wav = None
+        # Configure output format
+        fmt = "WAV"
+        if "FLAC" in self.output_format.upper():
+            fmt = "FLAC"
+        elif "MP3" in self.output_format.upper():
+            fmt = "MP3"
 
-        # 3. Try soundfile backend (handles WAV, FLAC, OGG, and modern MP3)
-        if wav is None:
-            try:
-                data, sr = sf.read(str(track_path), dtype="float32")
-                if data.ndim == 1:
-                    raw_wav = torch.from_numpy(data).unsqueeze(0)
-                else:
-                    raw_wav = torch.from_numpy(data.T)
-                wav = demucs_convert_audio(raw_wav, sr, self.sample_rate, self.audio_channels)
-            except Exception as exc:
-                raise RuntimeError(
-                    f"Impossible de lire le fichier audio '{track_path.name}': {exc}"
-                ) from exc
+        logger.info(
+            "Initializing Separator for %s (%s) -> format %s",
+            self.model_info.display_name,
+            self.model_info.filename,
+            fmt,
+        )
 
-        return wav
+        self._separator = Separator(
+            model_file_dir=str(self.cache_dir),
+            output_dir=str(self.output_dir),
+            output_format=fmt,
+            normalization_threshold=0.95,
+        )
 
-    # ── separation ──────────────────────────────────────────────────────
+        logger.info("Loading model %s...", self.model_info.filename)
+        self._separator.load_model(model_filename=self.model_info.filename)
+
+    # ── Separation ──────────────────────────────────────────────────────
 
     def separate(
         self,
         audio_path: Path | str,
-        progress_callback: Optional[Callable[[float], None]] = None,
-    ) -> dict[str, np.ndarray]:
-        """Run source separation on audio_path.
+        progress_callback: Optional[Callable[[float, str], None]] = None,
+    ) -> dict[str, Path]:
+        """Separate audio into isolated vocals and instrumental tracks.
 
-        Parameters
-        ----------
-        audio_path:
-            Path to audio file.
-        progress_callback:
-            Optional function called with fraction (0.0 to 1.0) as separation progresses.
+        Returns
+        -------
+        dict[str, Path]
+            Dictionary containing "vocals", "instrumental" (and "instru") paths.
         """
         audio_path = Path(audio_path)
         if not audio_path.is_file():
-            raise FileNotFoundError(f"Audio file not found: {audio_path}")
-
-        wav = self._load_track(audio_path)
-
-        # Standardize for Demucs
-        ref = wav.mean(0)
-        wav = (wav - ref.mean()) / (ref.std() + 1e-8)
-
-        # Hook tqdm in demucs.apply to report real-time chunk progress
-        import demucs.apply
-        orig_tqdm = demucs.apply.tqdm.tqdm
-
-        total_submodels = len(self._model.models) if isinstance(self._model, BagOfModels) else 1
-        current_submodel = [0]
-
-        class ProgressTqdmWrapper:
-            def __init__(self, iterable, *args, **kwargs):
-                self.iterable = iterable
-                self.total_chunks = len(iterable) if hasattr(iterable, "__len__") else 1
-                self.processed_chunks = 0
-
-            def __iter__(self):
-                for item in self.iterable:
-                    yield item
-                    self.processed_chunks += 1
-                    if progress_callback:
-                        sub_pct = self.processed_chunks / max(1, self.total_chunks)
-                        overall_pct = (current_submodel[0] + sub_pct) / total_submodels
-                        progress_callback(min(0.99, max(0.01, overall_pct)))
-                current_submodel[0] += 1
-
-        try:
-            demucs.apply.tqdm.tqdm = ProgressTqdmWrapper
-            with torch.no_grad():
-                sources = apply_model(
-                    self._model,
-                    wav[None],
-                    device=self._device,
-                    shifts=self._shifts,
-                    overlap=self._overlap,
-                    split=True,
-                    progress=True,
-                )[0]
-        finally:
-            demucs.apply.tqdm.tqdm = orig_tqdm
+            raise FileNotFoundError(f"Fichier audio introuvable : {audio_path}")
 
         if progress_callback:
-            progress_callback(1.0)
+            progress_callback(0.05, f"Initialisation du modèle {self.model_info.name}…")
 
-        # De-standardize
-        sources = sources * (ref.std() + 1e-8) + ref.mean()
+        if self._separator is None:
+            self._init_separator()
 
-        stems: dict[str, np.ndarray] = {}
-        for name, tensor in zip(self._model.sources, sources):
-            stems[name] = tensor.cpu().numpy()
+        if progress_callback:
+            progress_callback(0.15, "Séparation en cours (calcul spectral)…")
 
-        # Synthetic instrumental stem = sum of non-vocal stems
-        non_vocal = [tensor for name, tensor in zip(self._model.sources, sources) if name != "vocals"]
-        if non_vocal:
-            instru_tensor = sum(non_vocal)
-            stems["instrumental"] = instru_tensor.cpu().numpy()
-            stems["instru"] = stems["instrumental"]
+        # Run UVR/RoFormer/MDX separation
+        output_files = self._separator.separate(str(audio_path))
 
-        return stems
+        if progress_callback:
+            progress_callback(0.90, "Organisation des fichiers séparés…")
+
+        results: dict[str, Path] = {}
+
+        # audio-separator produces files containing "(Vocals)" and "(Instrumental)"
+        for fname in output_files:
+            file_path = self.output_dir / fname
+            if not file_path.exists():
+                # In case relative path was returned
+                cand = Path(fname)
+                if cand.exists():
+                    file_path = cand
+
+            lower_name = fname.lower()
+            if "(vocals)" in lower_name or "vocals" in lower_name:
+                results["vocals"] = file_path
+            elif "(instrumental)" in lower_name or "instrumental" in lower_name or "inst" in lower_name:
+                results["instrumental"] = file_path
+                results["instru"] = file_path
+
+        # If for any reason stems couldn't be matched by name, map by order
+        if "vocals" not in results and len(output_files) >= 1:
+            results["vocals"] = self.output_dir / output_files[0]
+        if "instrumental" not in results and len(output_files) >= 2:
+            results["instrumental"] = self.output_dir / output_files[1]
+            results["instru"] = results["instrumental"]
+
+        if progress_callback:
+            progress_callback(1.0, "Séparation terminée avec succès !")
+
+        return results

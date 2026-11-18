@@ -1,135 +1,71 @@
-"""Model registry, metadata, and local cache management for Demucs models."""
+"""Model registry and metadata for UVR5 / RoFormer / MDX-Net models."""
 
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional
-
-import torch
-
-logger = logging.getLogger(__name__)
-
-# ── Model metadata ──────────────────────────────────────────────────────────
 
 
 @dataclass(frozen=True)
 class ModelInfo:
-    """Immutable descriptor for a supported Demucs model."""
+    """Immutable descriptor for a supported source separation model."""
 
     name: str
     display_name: str
+    filename: str
     description: str
-    is_fine_tuned: bool = False
-    default_sources: tuple[str, ...] = ("drums", "bass", "other", "vocals")
+    arch: str  # "roformer" or "mdx"
+    recommended_device: str = "cuda"
 
 
-# ── Built-in registry ──────────────────────────────────────────────────────
+# ── Registered SOTA models ──────────────────────────────────────────────────
 
 _REGISTRY: dict[str, ModelInfo] = {
-    "htdemucs": ModelInfo(
-        name="htdemucs",
-        display_name="HTDemucs",
+    "bs_roformer": ModelInfo(
+        name="bs_roformer",
+        display_name="💎 Studio (BS-RoFormer - Qualité Max)",
+        filename="model_bs_roformer_ep_317_sdr_12.9755.ckpt",
         description=(
-            "Hybrid Transformer Demucs — good balance of speed and quality. "
-            "Recommended for most use-cases."
+            "Le modèle de référence mondial (ViperX). SDR ~12.98 dB. "
+            "Qualité studio absolue pour l'acapella, zéro artéfact."
         ),
-        is_fine_tuned=False,
+        arch="roformer",
     ),
-    "htdemucs_ft": ModelInfo(
-        name="htdemucs_ft",
-        display_name="HTDemucs (Fine-Tuned)",
+    "mdx_net": ModelInfo(
+        name="mdx_net",
+        display_name="🎯 Équilibré (MDX-Net - Rapide & Clean)",
+        filename="UVR-MDX-NET-Inst_HQ_3.onnx",
         description=(
-            "Fine-tuned variant of HTDemucs. Higher separation quality at the "
-            "cost of longer processing time."
+            "Modèle MDX-Net haute fidélité (HQ3). Très propre, léger "
+            "et rapide même sur processeur (CPU)."
         ),
-        is_fine_tuned=True,
+        arch="mdx",
     ),
 }
 
-# Public alias matching UI imports
 MODELS: dict[str, ModelInfo] = _REGISTRY
 
 
 class ModelManager:
-    """Discover, cache, and serve Demucs model metadata.
-
-    Parameters
-    ----------
-    cache_dir:
-        Optional directory for downloaded model weights.  When *None* the
-        default ``torch.hub`` cache is used.
-    """
-
-    def __init__(self, cache_dir: Optional[Path] = None) -> None:
-        self._cache_dir: Path | None = cache_dir
-        if self._cache_dir is not None:
-            self._cache_dir.mkdir(parents=True, exist_ok=True)
-            torch.hub.set_dir(str(self._cache_dir))
-
-    # ── queries ─────────────────────────────────────────────────────────
+    """Registry query methods."""
 
     @staticmethod
     def available_models() -> list[ModelInfo]:
-        """Return the list of all registered models."""
         return list(_REGISTRY.values())
 
     @staticmethod
     def list_models() -> list[str]:
-        """Return list of model names registered."""
         return list(_REGISTRY.keys())
 
     @staticmethod
     def get_model(name: str) -> ModelInfo:
-        """Look up a model by its internal name.
-
-        Raises
-        ------
-        KeyError
-            If *name* is not in the registry.
-        """
         try:
             return _REGISTRY[name]
         except KeyError:
             raise KeyError(
-                f"Unknown model '{name}'. "
-                f"Available: {', '.join(_REGISTRY)}"
+                f"Unknown model '{name}'. Available: {', '.join(_REGISTRY)}"
             ) from None
 
     @staticmethod
     def default_model() -> ModelInfo:
-        """Return the recommended default model."""
-        return _REGISTRY["htdemucs"]
-
-    # ── cache helpers ───────────────────────────────────────────────────
-
-    def cache_directory(self) -> Path:
-        """Return the resolved cache directory for model weights."""
-        if self._cache_dir is not None:
-            return self._cache_dir
-        return Path(torch.hub.get_dir())
-
-    def is_model_cached(self, name: str) -> bool:
-        """Check whether weights for *name* are already on disk.
-
-        This performs a best-effort search of the hub-cache checkpoints
-        directory for a file whose name contains *name*.
-        """
-        cache = self.cache_directory() / "checkpoints"
-        if not cache.exists():
-            return False
-        return any(name in p.name for p in cache.iterdir())
-
-    def clear_cache(self) -> int:
-        """Remove all cached model files and return the count deleted."""
-        cache = self.cache_directory() / "checkpoints"
-        if not cache.exists():
-            return 0
-        count = 0
-        for path in cache.iterdir():
-            if path.is_file():
-                path.unlink()
-                count += 1
-                logger.info("Deleted cached model file: %s", path)
-        return count
+        return _REGISTRY["bs_roformer"]

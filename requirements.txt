@@ -1,8 +1,18 @@
+# Core ML & Inference
+--extra-index-url https://download.pytorch.org/whl/cu121
 torch>=2.0
 torchaudio>=2.0
-demucs>=4.0
+onnxruntime-gpu>=1.18.0
+
+# UVR / RoFormer / MDX-Net source separation
+audio-separator>=0.18.0
+static-ffmpeg>=2.7
+
+# GUI
 PyQt6>=6.5
 PyQt6-Qt6>=6.5
+
+# Audio processing
 soundfile>=0.12
 pydub>=0.25
 numpy

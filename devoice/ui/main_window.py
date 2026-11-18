@@ -96,8 +96,8 @@ class MainWindow(QMainWindow):
 
         settings_row.addWidget(QLabel("Mode :"))
         self.model_combo = QComboBox()
-        self.model_combo.addItem("Rapide (Recommandé)", "htdemucs")
-        self.model_combo.addItem("Qualité Max (Plus lent)", "htdemucs_ft")
+        self.model_combo.addItem("💎 Studio (BS-RoFormer - Qualité Max)", "bs_roformer")
+        self.model_combo.addItem("🎯 Équilibré (MDX-Net - Rapide & Clean)", "mdx_net")
         self.model_combo.setCurrentIndex(0)
         settings_row.addWidget(self.model_combo)
 
@@ -260,12 +260,14 @@ class MainWindow(QMainWindow):
     def _update_device_label(self) -> None:
         """Detect CUDA availability and display the device name."""
         try:
-            import torch  # type: ignore[import-untyped]
+            import torch
 
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
                 self.device_label.setText(f"⚡ GPU : {gpu_name}")
+                self.device_label.setStyleSheet("color: #4ade80; font-weight: bold;")
             else:
-                self.device_label.setText("💻 CPU")
+                self.device_label.setText("💻 CPU (Pas de CG active)")
+                self.device_label.setStyleSheet("color: #facc15; font-weight: bold;")
         except ImportError:
-            self.device_label.setText("💻 CPU (torch non détecté)")
+            self.device_label.setText("💻 CPU")

@@ -9,20 +9,11 @@ from devoice.model_manager import ModelManager
 def test_model_manager_registry():
     """Verify default models are properly registered in ModelManager."""
     models = ModelManager.list_models()
-    assert "htdemucs" in models
-    assert "htdemucs_ft" in models
-    info = ModelManager.get_model("htdemucs")
-    assert info.name == "htdemucs"
-
-
-def test_detect_device():
-    """Verify that _detect_device returns 'cuda' or 'cpu'."""
-    device = SeparationEngine._detect_device()
-    assert device in ("cuda", "cpu")
-    if torch.cuda.is_available():
-        assert device == "cuda"
-    else:
-        assert device == "cpu"
+    assert "bs_roformer" in models
+    assert "mdx_net" in models
+    info = ModelManager.get_model("bs_roformer")
+    assert info.name == "bs_roformer"
+    assert info.arch == "roformer"
 
 
 def test_is_cuda_available():
