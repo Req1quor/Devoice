@@ -48,8 +48,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Devoice")
-        self.setMinimumSize(660, 560)
-        self.resize(680, 580)
+        self.setMinimumSize(660, 620)
+        self.resize(680, 640)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
@@ -119,21 +119,23 @@ class MainWindow(QMainWindow):
         self.settings_card = QFrame()
         self.settings_card.setObjectName("SettingsCard")
         card_layout = QVBoxLayout(self.settings_card)
-        card_layout.setContentsMargins(14, 12, 14, 12)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(16, 14, 16, 14)
+        card_layout.setSpacing(12)
 
         # Row 1: Model & Format & Output
         row1 = QHBoxLayout()
         row1.setSpacing(10)
 
-        row1.addWidget(QLabel("Modèle :"))
+        lbl_model = QLabel("Modèle :")
+        row1.addWidget(lbl_model, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.model_combo = QComboBox()
         for model in ModelManager.available_models():
             self.model_combo.addItem(model.display_name, model.name)
         self.model_combo.setCurrentIndex(0)
         row1.addWidget(self.model_combo, stretch=2)
 
-        row1.addWidget(QLabel("Format :"))
+        lbl_format = QLabel("Format :")
+        row1.addWidget(lbl_format, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.format_combo = QComboBox()
         for display_name in OUTPUT_FORMATS:
             self.format_combo.addItem(display_name)
@@ -145,12 +147,6 @@ class MainWindow(QMainWindow):
 
         card_layout.addLayout(row1)
 
-        # Divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet("color: #222225; background-color: #222225; max-height: 1px;")
-        card_layout.addWidget(divider)
-
         # Row 2: Post-processing toggle
         auto_row = QHBoxLayout()
         auto_row.setSpacing(10)
@@ -158,7 +154,7 @@ class MainWindow(QMainWindow):
         self.chk_auto_dsp = QCheckBox("Post-traitement audio (égalisation et réduction du souffle)")
         self.chk_auto_dsp.setChecked(True)
         self.chk_auto_dsp.toggled.connect(self._on_auto_dsp_toggled)
-        auto_row.addWidget(self.chk_auto_dsp, stretch=1)
+        auto_row.addWidget(self.chk_auto_dsp, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_toggle_advanced = QPushButton("Options ▾")
         self.btn_toggle_advanced.setStyleSheet(
@@ -241,6 +237,8 @@ class MainWindow(QMainWindow):
         is_visible = self.drawer_widget.isVisible()
         self.drawer_widget.setVisible(not is_visible)
         self.btn_toggle_advanced.setText("Options ▴" if not is_visible else "Options ▾")
+        if not is_visible:
+            self.resize(self.width(), max(self.height(), 720))
 
     def _on_auto_dsp_toggled(self, checked: bool) -> None:
         self.drawer_widget.setEnabled(checked)
@@ -436,6 +434,7 @@ class MainWindow(QMainWindow):
                 instru_path=instru_path,
                 original_path=self._last_processed_file,
             )
+            self.resize(self.width(), max(self.height(), 700))
 
     def _on_file_error(self, filename: str, error: str) -> None:
         self.status_label.setText(f"Erreur : {error}")

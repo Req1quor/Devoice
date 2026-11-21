@@ -56,7 +56,6 @@ QLabel, QCheckBox {
     background-color: #111113;
     border: 1px solid #222225;
     border-radius: 8px;
-    padding: 14px;
 }
 
 /* === Form Controls (Combos & Inputs) === */
