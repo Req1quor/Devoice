@@ -1,11 +1,13 @@
-"""Unit tests for audio utilities (info, normalisation, pro filters)."""
+"""Unit tests for audio utilities (info, normalisation, pro filters, acoustic diagnostic)."""
 
 from pathlib import Path
 import numpy as np
 import pytest
 import soundfile as sf
 from devoice.audio_utils import (
+    AudioDiagnostic,
     AudioInfo,
+    analyze_audio_track,
     apply_subbass_filter,
     apply_true_peak_normalization,
     get_audio_info,
@@ -64,3 +66,20 @@ def test_apply_true_peak_normalization(tmp_path: Path):
     norm_data, _ = sf.read(str(res))
     expected_peak = 10.0 ** (-1.0 / 20.0)
     assert np.isclose(np.max(np.abs(norm_data)), expected_peak, atol=0.01)
+
+
+def test_analyze_audio_track(tmp_path: Path):
+    """Verify analyze_audio_track accurately diagnoses peak and frequency content."""
+    sr = 44100
+    t = np.linspace(0, 2.0, sr * 2, endpoint=False)
+    # Hot peak (0.99 = -0.08 dBFS) with high sub-bass (30 Hz)
+    signal = 0.99 * np.sin(2 * np.pi * 30 * t)
+    wav_path = tmp_path / "hot_sub.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    diag = analyze_audio_track(wav_path)
+    assert isinstance(diag, AudioDiagnostic)
+    assert diag.peak_dbfs > -0.5
+    assert diag.recommend_true_peak is True
+    assert diag.recommend_subbass is True
+    assert "Pic" in diag.true_peak_reason

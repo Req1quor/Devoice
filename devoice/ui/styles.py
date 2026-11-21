@@ -38,7 +38,7 @@ QMainWindow, QWidget {
     background-color: #0d0d10;
     border: 1.5px dashed #27272a;
     border-radius: 16px;
-    min-height: 160px;
+    min-height: 140px;
 }
 #DropZone:hover {
     border-color: #71717a;
@@ -50,7 +50,7 @@ QMainWindow, QWidget {
     font-weight: 500;
 }
 #DropZoneIcon {
-    font-size: 36px;
+    font-size: 32px;
     color: #52525b;
 }
 
@@ -66,8 +66,8 @@ QListWidget::item {
     background-color: #141418;
     border: 1px solid #1f1f23;
     border-radius: 6px;
-    padding: 8px 12px;
-    margin-bottom: 4px;
+    padding: 6px 12px;
+    margin-bottom: 2px;
 }
 QListWidget::item:selected {
     border-color: #52525b;
@@ -105,14 +105,43 @@ QComboBox QAbstractItemView {
     selection-background-color: #27272a;
 }
 
-/* === Checkboxes (Pro Options) === */
+/* === Diagnostic & Adaptive Options Card === */
+#DiagnosticCard {
+    background-color: #0e0e12;
+    border: 1px solid #1f1f25;
+    border-radius: 12px;
+    padding: 12px 16px;
+}
+#DiagnosticTitle {
+    color: #e4e4e7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+#DiagnosticSummary {
+    color: #71717a;
+    font-size: 11px;
+    font-weight: 400;
+}
+#ReasonLabel {
+    color: #71717a;
+    font-size: 11px;
+    margin-left: 24px;
+    margin-bottom: 4px;
+}
+#ReasonLabel[recommended="true"] {
+    color: #4ade80;
+}
+
+/* === Checkboxes (Adaptive Options) === */
 QCheckBox {
-    color: #a1a1aa;
+    color: #f4f4f5;
     font-size: 12px;
+    font-weight: 600;
     spacing: 8px;
 }
 QCheckBox:hover {
-    color: #fafafa;
+    color: #ffffff;
 }
 QCheckBox::indicator {
     width: 15px;

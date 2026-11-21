@@ -1,15 +1,17 @@
-"""Main application window for Devoice (Minimalist Monochrome Edition)."""
+"""Main application window for Devoice (Minimalist Monochrome Edition with Adaptive Audio Diagnostic)."""
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -20,37 +22,42 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from devoice.audio_utils import AudioDiagnostic, analyze_audio_track
 from devoice.config import OUTPUT_FORMATS
 from devoice.model_manager import ModelManager
 from devoice.ui.audio_player import AudioPreviewPlayer
 from devoice.ui.drop_zone import DropZone
 from devoice.worker import SeparationWorker
 
+logger = logging.getLogger(__name__)
+
 
 class MainWindow(QMainWindow):
-    """Primary window that assembles every UI element of Devoice."""
+    """Primary window assembling the UI and adaptive acoustic diagnostic workflow."""
 
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Devoice")
-        self.setMinimumSize(680, 640)
-        self.resize(750, 700)
+        self.setMinimumSize(700, 680)
+        self.resize(760, 720)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
         self.worker: SeparationWorker | None = None
         self._last_processed_file: Path | None = None
+        self._current_diagnostic: Optional[AudioDiagnostic] = None
 
         self._build_ui()
         self._update_device_label()
+        self._reset_diagnostic_ui()
 
     def _build_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(28, 24, 28, 24)
-        root.setSpacing(14)
+        root.setContentsMargins(28, 22, 28, 22)
+        root.setSpacing(12)
 
         # ── (a) Header ──────────────────────────────────────────────────
         header = QHBoxLayout()
@@ -82,13 +89,13 @@ class MainWindow(QMainWindow):
 
         # ── (c) File Queue List ─────────────────────────────────────────
         self.file_list = QListWidget()
-        self.file_list.setMaximumHeight(90)
+        self.file_list.setMaximumHeight(80)
         self.file_list.setVisible(False)
         root.addWidget(self.file_list)
 
-        # ── (d) Settings Row ────────────────────────────────────────────
+        # ── (d) Settings Row (Model / Format / Export Dir) ──────────────
         settings_row = QHBoxLayout()
-        settings_row.setSpacing(12)
+        settings_row.setSpacing(10)
 
         settings_row.addWidget(QLabel("Mode :"))
         self.model_combo = QComboBox()
@@ -109,28 +116,58 @@ class MainWindow(QMainWindow):
 
         root.addLayout(settings_row)
 
-        # ── (e) Pro Audio Options ───────────────────────────────────────
-        opts_layout = QHBoxLayout()
-        opts_layout.setSpacing(16)
+        # ── (e) Diagnostic & Adaptive Pro Options Card ──────────────────
+        self.diag_card = QFrame()
+        self.diag_card.setObjectName("DiagnosticCard")
+        diag_layout = QVBoxLayout(self.diag_card)
+        diag_layout.setContentsMargins(14, 12, 14, 12)
+        diag_layout.setSpacing(8)
 
-        opts_title = QLabel("Options Pro :")
-        opts_title.setStyleSheet("color: #71717a; font-size: 11px; font-weight: 600;")
-        opts_layout.addWidget(opts_title)
+        # Diagnostic Headline
+        diag_top = QHBoxLayout()
+        self.diag_title = QLabel("💡 DIAGNOSTIC INTELLIGENT")
+        self.diag_title.setObjectName("DiagnosticTitle")
+        diag_top.addWidget(self.diag_title)
 
-        self.cb_true_peak = QCheckBox("Normalisation True-Peak (-1 dBFS)")
-        self.cb_true_peak.setChecked(True)
-        opts_layout.addWidget(self.cb_true_peak)
+        diag_top.addStretch()
 
+        self.diag_summary = QLabel("")
+        self.diag_summary.setObjectName("DiagnosticSummary")
+        diag_top.addWidget(self.diag_summary)
+        diag_layout.addLayout(diag_top)
+
+        # 3 Adaptive Treatment Rows (Checkbox + Reason/Badge)
+        # 1. True Peak
+        row1 = QVBoxLayout()
+        row1.setSpacing(1)
+        self.cb_true_peak = QCheckBox("Normalisation True-Peak (-1.0 dBFS)")
+        self.lbl_true_peak_reason = QLabel("⚪ En attente de fichier…")
+        self.lbl_true_peak_reason.setObjectName("ReasonLabel")
+        row1.addWidget(self.cb_true_peak)
+        row1.addWidget(self.lbl_true_peak_reason)
+        diag_layout.addLayout(row1)
+
+        # 2. Sub-Bass
+        row2 = QVBoxLayout()
+        row2.setSpacing(1)
         self.cb_subbass = QCheckBox("Coupe-bas Sub-Bass (65 Hz)")
-        self.cb_subbass.setChecked(True)
-        opts_layout.addWidget(self.cb_subbass)
+        self.lbl_subbass_reason = QLabel("⚪ En attente de fichier…")
+        self.lbl_subbass_reason.setObjectName("ReasonLabel")
+        row2.addWidget(self.cb_subbass)
+        row2.addWidget(self.lbl_subbass_reason)
+        diag_layout.addLayout(row2)
 
-        self.cb_debleed = QCheckBox("Dé-bleed spectral")
-        self.cb_debleed.setChecked(False)
-        opts_layout.addWidget(self.cb_debleed)
+        # 3. Spectral De-bleed
+        row3 = QVBoxLayout()
+        row3.setSpacing(1)
+        self.cb_debleed = QCheckBox("Dé-bleed spectral (Suppression des fuites d'aigus)")
+        self.lbl_debleed_reason = QLabel("⚪ En attente de fichier…")
+        self.lbl_debleed_reason.setObjectName("ReasonLabel")
+        row3.addWidget(self.cb_debleed)
+        row3.addWidget(self.lbl_debleed_reason)
+        diag_layout.addLayout(row3)
 
-        opts_layout.addStretch()
-        root.addLayout(opts_layout)
+        root.addWidget(self.diag_card)
 
         # ── (f) Progress Bar & Status ───────────────────────────────────
         self.progress_bar = QProgressBar()
@@ -138,7 +175,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         root.addWidget(self.progress_bar)
 
-        self.status_label = QLabel("En attente d'un fichier audio…")
+        self.status_label = QLabel("Glissez-déposez un morceau pour démarrer…")
         self.status_label.setObjectName("StatusLabel")
         root.addWidget(self.status_label)
 
@@ -165,6 +202,50 @@ class MainWindow(QMainWindow):
 
         root.addStretch()
 
+    # ── Diagnostic & Dynamic Adaptations ────────────────────────────────
+
+    def _reset_diagnostic_ui(self) -> None:
+        """Reset the diagnostic card to waiting state."""
+        self.diag_title.setText("💡 ANALYSE ACOUSTIQUE ADAPTATIVE")
+        self.diag_summary.setText("Déposez un morceau pour analyser son spectre")
+        self.cb_true_peak.setEnabled(False)
+        self.cb_subbass.setEnabled(False)
+        self.cb_debleed.setEnabled(False)
+        self.lbl_true_peak_reason.setText("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_subbass_reason.setText("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_debleed_reason.setText("⚪ Déposez un fichier pour adapter l'option")
+
+    def _update_diagnostic_ui(self, diag: AudioDiagnostic) -> None:
+        """Dynamically populate checkboxes and explanatory tags based on track analysis."""
+        self._current_diagnostic = diag
+        self.diag_title.setText(f"● ANALYSE : {diag.filename}")
+        self.diag_summary.setText(f"{diag.duration_display} · Pic: {diag.peak_dbfs:.1f} dBFS · Sub: {diag.sub_bass_ratio*100:.1f}%")
+
+        # 1. True-Peak Normalization
+        self.cb_true_peak.setEnabled(True)
+        self.cb_true_peak.setChecked(diag.recommend_true_peak)
+        tp_icon = "🟢 Recommandé :" if diag.recommend_true_peak else "⚪ Non nécessaire :"
+        self.lbl_true_peak_reason.setText(f"{tp_icon} {diag.true_peak_reason}")
+        self.lbl_true_peak_reason.setProperty("recommended", "true" if diag.recommend_true_peak else "false")
+
+        # 2. Sub-Bass Filter
+        self.cb_subbass.setEnabled(True)
+        self.cb_subbass.setChecked(diag.recommend_subbass)
+        sub_icon = "🟢 Recommandé :" if diag.recommend_subbass else "⚪ Inactif conseillé :"
+        self.lbl_subbass_reason.setText(f"{sub_icon} {diag.subbass_reason}")
+        self.lbl_subbass_reason.setProperty("recommended", "true" if diag.recommend_subbass else "false")
+
+        # 3. Spectral De-bleed
+        self.cb_debleed.setEnabled(True)
+        self.cb_debleed.setChecked(diag.recommend_debleed)
+        deb_icon = "🟢 Recommandé :" if diag.recommend_debleed else "⚪ Inactif conseillé :"
+        self.lbl_debleed_reason.setText(f"{deb_icon} {diag.debleed_reason}")
+        self.lbl_debleed_reason.setProperty("recommended", "true" if diag.recommend_debleed else "false")
+
+        # Force stylesheet refresh on reasons
+        for lbl in (self.lbl_true_peak_reason, self.lbl_subbass_reason, self.lbl_debleed_reason):
+            lbl.setStyle(lbl.style())
+
     # ── Logic & Signal Slots ────────────────────────────────────────────
 
     def _on_files_dropped(self, paths: list[Path]) -> None:
@@ -176,6 +257,14 @@ class MainWindow(QMainWindow):
         self.file_list.setVisible(True)
         self.start_btn.setEnabled(True)
         self.status_label.setText(f"{len(self.pending_files)} fichier(s) prêt(s)")
+
+        # Run instant acoustic analysis on the first track to adapt the options
+        primary_file = paths[0]
+        try:
+            diag = analyze_audio_track(primary_file)
+            self._update_diagnostic_ui(diag)
+        except Exception as exc:
+            logger.warning("Could not run acoustic analysis on %s: %s", primary_file.name, exc)
 
     def _select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(
@@ -233,7 +322,6 @@ class MainWindow(QMainWindow):
         instru_path = Path(results.get("instru", "") or results.get("instrumental", ""))
 
         if vocals_path.exists() and instru_path.exists():
-            # Pass original track to allow synchronized 3-way A/B/C comparison
             self.audio_player.set_results(
                 vocals_path=vocals_path,
                 instru_path=instru_path,
