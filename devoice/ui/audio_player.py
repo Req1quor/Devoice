@@ -1,4 +1,4 @@
-"""High-end studio minimalist audio player in pure Noir & Blanc."""
+"""Studio-grade audio player console for Devoice."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 
 
 class AudioPreviewPlayer(QWidget):
-    """Studio-grade minimalist player in Noir & Blanc."""
+    """Studio VST audio preview player with precision controls and stem color coding."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -46,17 +46,13 @@ class AudioPreviewPlayer(QWidget):
         card_layout.setContentsMargins(16, 14, 16, 14)
         card_layout.setSpacing(10)
 
-        # Header row: Track stem & time
+        # Header row: Track stem & LCD timecode badge
         top_row = QHBoxLayout()
         self._label_track = QLabel("LECTURE : VOIX")
-        self._label_track.setStyleSheet(
-            "font-size: 11px; font-weight: 700; color: #71717a; letter-spacing: 0.8px;"
-        )
+        self._label_track.setObjectName("PlayerTrackLabel")
 
         self._label_time = QLabel("00:00 / 00:00")
-        self._label_time.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #ffffff;"
-        )
+        self._label_time.setObjectName("PlayerTimeLabel")
 
         top_row.addWidget(self._label_track)
         top_row.addStretch()
@@ -85,18 +81,21 @@ class AudioPreviewPlayer(QWidget):
 
         self._btn_vocals = QPushButton("Voix")
         self._btn_vocals.setObjectName("StemActive")
+        self._btn_vocals.setProperty("stem", "vocals")
         self._btn_vocals.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_vocals.clicked.connect(lambda: self._switch_stem("vocals"))
         controls_row.addWidget(self._btn_vocals)
 
         self._btn_instru = QPushButton("Instrumentale")
         self._btn_instru.setObjectName("StemInactive")
+        self._btn_instru.setProperty("stem", "")
         self._btn_instru.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_instru.clicked.connect(lambda: self._switch_stem("instru"))
         controls_row.addWidget(self._btn_instru)
 
         self._btn_orig = QPushButton("Original")
         self._btn_orig.setObjectName("StemInactive")
+        self._btn_orig.setProperty("stem", "")
         self._btn_orig.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_orig.clicked.connect(lambda: self._switch_stem("original"))
         controls_row.addWidget(self._btn_orig)
@@ -163,12 +162,16 @@ class AudioPreviewPlayer(QWidget):
 
         self._label_track.setText(title)
 
-        self._btn_vocals.setObjectName("StemActive" if self._active_stem == "vocals" else "StemInactive")
-        self._btn_instru.setObjectName("StemActive" if self._active_stem == "instru" else "StemInactive")
-        self._btn_orig.setObjectName("StemActive" if self._active_stem == "original" else "StemInactive")
-
-        for b in (self._btn_vocals, self._btn_instru, self._btn_orig):
-            b.setStyle(b.style())
+        stem_map = [
+            (self._btn_vocals, "vocals"),
+            (self._btn_instru, "instru"),
+            (self._btn_orig, "original"),
+        ]
+        for btn, stem_name in stem_map:
+            is_active = self._active_stem == stem_name
+            btn.setObjectName("StemActive" if is_active else "StemInactive")
+            btn.setProperty("stem", stem_name if is_active else "")
+            btn.setStyle(btn.style())
 
         was_playing = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
         current_pos = 0 if seek_to_zero else self._player.position()

@@ -1,4 +1,4 @@
-"""Clean minimalist drag & drop widget for Devoice."""
+"""Studio-grade audio cartridge drag & drop widget for Devoice."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ SUPPORTED_FORMATS = {
 
 
 class DropZone(QFrame):
-    """Minimalist audio drop zone with consistent layout."""
+    """Studio-grade audio drop cartridge with dynamic QSS properties."""
 
     files_dropped = pyqtSignal(list)
     youtube_url_dropped = pyqtSignal(str)
@@ -34,25 +34,28 @@ class DropZone(QFrame):
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(110)
+        self.setMinimumHeight(112)
+
+        self.setProperty("dragOver", False)
+        self.setProperty("loaded", "false")
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(4)
+        layout.setSpacing(5)
 
         self._title_label = QLabel("Déposer un fichier audio ici")
+        self._title_label.setObjectName("DropZoneTitle")
         self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title_label.setWordWrap(True)
-        self._title_label.setStyleSheet("font-size: 14px; font-weight: 600; color: #ffffff;")
 
         self._subtitle_label = QLabel("ou cliquer pour parcourir")
+        self._subtitle_label.setObjectName("DropZoneSubtitle")
         self._subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._subtitle_label.setStyleSheet("font-size: 12px; color: #71717a;")
 
         self._formats_label = QLabel("WAV · MP3 · FLAC · M4A · AIFF · OGG")
+        self._formats_label.setObjectName("DropZoneFormats")
         self._formats_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._formats_label.setStyleSheet("font-size: 11px; color: #52525b;")
 
         layout.addWidget(self._title_label)
         layout.addWidget(self._subtitle_label)
@@ -62,16 +65,12 @@ class DropZone(QFrame):
         """Update appearance when a file is loaded."""
         if path is not None:
             self._title_label.setText(path.name)
-            self._title_label.setStyleSheet("font-size: 14px; font-weight: 600; color: #ffffff;")
             self._subtitle_label.setText("Fichier prêt · Cliquer pour remplacer")
-            self._subtitle_label.setStyleSheet("font-size: 11px; color: #a1a1aa;")
             self._formats_label.setVisible(False)
             self.setProperty("loaded", "true")
         else:
             self._title_label.setText("Déposer un fichier audio ici")
-            self._title_label.setStyleSheet("font-size: 14px; font-weight: 600; color: #ffffff;")
             self._subtitle_label.setText("ou cliquer pour parcourir")
-            self._subtitle_label.setStyleSheet("font-size: 12px; color: #71717a;")
             self._formats_label.setVisible(True)
             self.setProperty("loaded", "false")
         self.setStyle(self.style())
@@ -83,9 +82,7 @@ class DropZone(QFrame):
     ) -> None:
         """Update appearance during YouTube download."""
         self._title_label.setText(title)
-        self._title_label.setStyleSheet("font-size: 14px; font-weight: 600; color: #ffffff;")
         self._subtitle_label.setText(subtitle)
-        self._subtitle_label.setStyleSheet("font-size: 11px; color: #a1a1aa;")
         self._formats_label.setVisible(False)
         self.setProperty("loaded", "true")
         self.setStyle(self.style())
@@ -93,15 +90,19 @@ class DropZone(QFrame):
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls() or event.mimeData().hasText():
             event.acceptProposedAction()
-            self.setStyleSheet("#DropZone { border-color: #ffffff; background-color: #18181b; }")
+            self.setProperty("dragOver", True)
+            self.setStyle(self.style())
         else:
             event.ignore()
 
     def dragLeaveEvent(self, event) -> None:
-        self.setStyleSheet("")
+        self.setProperty("dragOver", False)
+        self.setStyle(self.style())
 
     def dropEvent(self, event) -> None:
-        self.setStyleSheet("")
+        self.setProperty("dragOver", False)
+        self.setStyle(self.style())
+
         # 1. Check for dropped YouTube URL
         if event.mimeData().hasText():
             text = event.mimeData().text().strip()
@@ -136,4 +137,3 @@ class DropZone(QFrame):
             )
             if files:
                 self.files_dropped.emit([Path(f) for f in files])
-

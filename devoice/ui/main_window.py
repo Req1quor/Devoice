@@ -1,4 +1,4 @@
-"""Clean, normalized, minimalist MainWindow for Devoice."""
+"""Studio-grade, high-contrast, ergonomic MainWindow for Devoice."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ OUTPUT_FORMATS = [
 
 
 class MainWindow(QMainWindow):
-    """Minimalist audio separation desktop application."""
+    """Studio-grade audio separation and post-processing desktop workstation."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
 
         self.yt_btn = QPushButton("Télécharger")
         self.yt_btn.setObjectName("YouTubeButton")
+        self.yt_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.yt_btn.clicked.connect(self._on_youtube_download_clicked)
         yt_layout.addWidget(self.yt_btn)
 
@@ -140,6 +141,7 @@ class MainWindow(QMainWindow):
         lbl_model = QLabel("Modèle :")
         row1.addWidget(lbl_model, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.model_combo = QComboBox()
+        self.model_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         for model in ModelManager.available_models():
             self.model_combo.addItem(model.display_name, model.name)
         self.model_combo.setCurrentIndex(0)
@@ -148,11 +150,13 @@ class MainWindow(QMainWindow):
         lbl_format = QLabel("Format :")
         row1.addWidget(lbl_format, alignment=Qt.AlignmentFlag.AlignVCenter)
         self.format_combo = QComboBox()
+        self.format_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         for display_name in OUTPUT_FORMATS:
             self.format_combo.addItem(display_name)
         row1.addWidget(self.format_combo, stretch=1)
 
         self.output_dir_btn = QPushButton("Dossier…")
+        self.output_dir_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.output_dir_btn.clicked.connect(self._select_output_dir)
         row1.addWidget(self.output_dir_btn)
 
@@ -164,14 +168,13 @@ class MainWindow(QMainWindow):
 
         self.chk_auto_dsp = QCheckBox("Post-traitement audio (égalisation et réduction du souffle)")
         self.chk_auto_dsp.setChecked(True)
+        self.chk_auto_dsp.setCursor(Qt.CursorShape.PointingHandCursor)
         self.chk_auto_dsp.toggled.connect(self._on_auto_dsp_toggled)
         self.chk_auto_dsp.toggled.connect(self._on_dsp_parameter_changed)
         auto_row.addWidget(self.chk_auto_dsp, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_toggle_advanced = QPushButton("Options ▾")
-        self.btn_toggle_advanced.setStyleSheet(
-            "background-color: transparent; border: 1px solid #27272a; color: #a1a1aa; font-size: 11px; padding: 4px 10px; border-radius: 6px;"
-        )
+        self.btn_toggle_advanced.setObjectName("OptionsDrawerButton")
         self.btn_toggle_advanced.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_advanced.clicked.connect(self._toggle_advanced_drawer)
         auto_row.addWidget(self.btn_toggle_advanced, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -180,10 +183,11 @@ class MainWindow(QMainWindow):
 
         # Collapsible Drawer
         self.drawer_widget = QWidget()
+        self.drawer_widget.setObjectName("DrawerContainer")
         self.drawer_widget.setVisible(False)
         drawer_layout = QGridLayout(self.drawer_widget)
-        drawer_layout.setContentsMargins(4, 10, 4, 4)
-        drawer_layout.setHorizontalSpacing(16)
+        drawer_layout.setContentsMargins(2, 8, 2, 4)
+        drawer_layout.setHorizontalSpacing(10)
         drawer_layout.setVerticalSpacing(10)
 
         self.chk_leveler = QCheckBox("Égalisation de volume")
@@ -211,6 +215,7 @@ class MainWindow(QMainWindow):
             self.chk_true_peak,
             self.chk_debleed,
         ):
+            chk.setCursor(Qt.CursorShape.PointingHandCursor)
             chk.toggled.connect(self._on_dsp_parameter_changed)
 
         card_layout.addWidget(self.drawer_widget)
@@ -244,8 +249,8 @@ class MainWindow(QMainWindow):
         root.addWidget(self.progress_bar)
 
         self.status_label = QLabel("Prêt")
+        self.status_label.setObjectName("StatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #8a90a4; font-size: 11px;")
         root.addWidget(self.status_label)
 
         # ── (g) Audio Player ──────────────────────────────────────────────
@@ -257,11 +262,17 @@ class MainWindow(QMainWindow):
     # ── UI Drawer & Toggles ─────────────────────────────────────────────
 
     def _toggle_advanced_drawer(self) -> None:
-        is_visible = self.drawer_widget.isVisible()
+        is_visible = not self.drawer_widget.isHidden()
         self.drawer_widget.setVisible(not is_visible)
         self.btn_toggle_advanced.setText("Options ▴" if not is_visible else "Options ▾")
         if not is_visible:
-            self.resize(self.width(), max(self.height(), 720))
+            target_h = 790 if self.file_list.isVisible() else 720
+            self.resize(self.width(), max(self.height(), target_h))
+            if self.audio_player.isVisible():
+                self.setMinimumHeight(690)
+        else:
+            if not self.audio_player.isVisible() and not self.file_list.isVisible():
+                self.setMinimumHeight(620)
 
     def _on_auto_dsp_toggled(self, checked: bool) -> None:
         self.drawer_widget.setEnabled(checked)
@@ -514,6 +525,8 @@ class MainWindow(QMainWindow):
         elif self.worker is not None:
             self.worker.cancel()
             self.status_label.setText("Annulation…")
+        if not self.audio_player.isVisible() and self.drawer_widget.isHidden():
+            self.setMinimumHeight(620)
 
     def _on_progress(self, pct: int, msg: str) -> None:
         self.progress_bar.setValue(pct)
@@ -545,7 +558,13 @@ class MainWindow(QMainWindow):
                 instru_path=instru_path,
                 original_path=self._last_processed_file,
             )
-            self.resize(self.width(), max(self.height(), 700))
+            if not self.drawer_widget.isHidden():
+                self.setMinimumHeight(690)
+                self.resize(self.width(), max(self.height(), 760))
+            else:
+                self.resize(self.width(), max(self.height(), 700))
+        elif not self.audio_player.isVisible() and self.drawer_widget.isHidden():
+            self.setMinimumHeight(620)
 
     def _on_file_error(self, filename: str, error: str) -> None:
         self.status_label.setText(f"Erreur : {error}")
@@ -557,6 +576,8 @@ class MainWindow(QMainWindow):
         self.pending_files.clear()
         self.file_list.clear()
         self.file_list.setVisible(False)
+        if not self.audio_player.isVisible() and self.drawer_widget.isHidden():
+            self.setMinimumHeight(620)
 
     def _update_device_label(self) -> None:
         try:
@@ -564,10 +585,9 @@ class MainWindow(QMainWindow):
 
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
-                # Keep it short, e.g. "RTX 3060"
                 short_gpu = gpu_name.replace("NVIDIA GeForce ", "").replace("NVIDIA ", "")
-                self.device_label.setText(short_gpu)
+                self.device_label.setText(f"● {short_gpu}")
             else:
-                self.device_label.setText("CPU")
+                self.device_label.setText("● CPU")
         except Exception:
-            self.device_label.setText("CPU")
+            self.device_label.setText("● CPU")
