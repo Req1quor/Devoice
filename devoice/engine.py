@@ -145,18 +145,18 @@ class SeparationEngine:
             raise FileNotFoundError(f"Fichier audio introuvable : {audio_path}")
 
         if progress_callback:
-            progress_callback(0.05, f"Initialisation du modèle {self.model_info.name}…")
+            progress_callback(0.05, "Chargement du modèle…")
 
         if self._separator is None:
             self._init_separator()
 
         if progress_callback:
-            progress_callback(0.20, "Séparation en cours (calcul spectral haute précision)…")
+            progress_callback(0.20, "Séparation en cours…")
 
         try:
             output_files = self._separator.separate(str(audio_path))
         except Exception as exc:
-            logger.warning("Séparation directe échouée (%s), conversion de secours en WAV 32-bit float sans perte", exc)
+            logger.warning("Séparation directe échouée (%s), conversion de secours", exc)
             clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
             ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
             conv_cmd = [
@@ -181,7 +181,7 @@ class SeparationEngine:
                         pass
 
         if progress_callback:
-            progress_callback(0.85, "Organisation des pistes audio…")
+            progress_callback(0.85, "Finalisation des pistes…")
 
         results: dict[str, Path] = {}
 
@@ -222,7 +222,7 @@ class SeparationEngine:
             # 1. Silence Purifier / Clean Gate
             if self.silence_purifier:
                 if progress_callback:
-                    progress_callback(0.88, "Nettoyage des silences & souffle…")
+                    progress_callback(0.88, "Nettoyage du souffle…")
                 try:
                     apply_silence_purifier(vocals_path)
                 except Exception as exc:
@@ -231,7 +231,7 @@ class SeparationEngine:
             # 2. Pitch-tracked Sub-Bass cutoff tailored to singer
             if self.subbass_filter:
                 if progress_callback:
-                    progress_callback(0.90, f"Coupe-bas fréquentiel ({int(self.subbass_cutoff)} Hz)…")
+                    progress_callback(0.90, "Filtre coupe-bas…")
                 try:
                     apply_pitch_tracked_subbass_filter(vocals_path, cutoff_hz=self.subbass_cutoff)
                 except Exception as exc:
@@ -240,7 +240,7 @@ class SeparationEngine:
             # 3. De-Reverb Studio
             if self.dereverb:
                 if progress_callback:
-                    progress_callback(0.92, "Assèchement réverbe / pièce studio…")
+                    progress_callback(0.92, "Réduction de réverbération…")
                 try:
                     apply_dereverb_clean(vocals_path)
                 except Exception as exc:
@@ -249,16 +249,16 @@ class SeparationEngine:
             # 4. Dynamic De-Esser
             if self.deesser:
                 if progress_callback:
-                    progress_callback(0.93, f"De-Esser dynamique ({self.deesser_freq/1000:.1f} kHz)…")
+                    progress_callback(0.93, "Atténuation des sifflements…")
                 try:
                     apply_dynamic_deesser(vocals_path, sibilance_freq_hz=self.deesser_freq)
                 except Exception as exc:
                     logger.warning("Could not apply dynamic de-esser: %s", exc)
 
-            # 5. Vocal Rider / Dynamic Leveler (stabilise les volumes et compense les trous)
+            # 5. Vocal Rider / Dynamic Leveler
             if self.vocal_leveler:
                 if progress_callback:
-                    progress_callback(0.95, "Vocal Rider Studio (Stabilisation dynamique du gain)…")
+                    progress_callback(0.95, "Égalisation du volume…")
                 try:
                     apply_vocal_leveler(vocals_path, max_boost_db=4.5, max_cut_db=4.5)
                 except Exception as exc:
@@ -267,7 +267,7 @@ class SeparationEngine:
             # 6. Spectral De-bleed
             if self.spectral_debleed and instru_path and instru_path.is_file():
                 if progress_callback:
-                    progress_callback(0.97, "Dé-bleed spectral…")
+                    progress_callback(0.97, "Réduction des fuites…")
                 try:
                     apply_spectral_debleed(vocals_path, instru_path, reduction_db=2.5)
                 except Exception as exc:
@@ -276,7 +276,7 @@ class SeparationEngine:
             # 7. True-Peak Normalization (-1.0 dBFS)
             if self.true_peak:
                 if progress_callback:
-                    progress_callback(0.99, "Calibration True-Peak (-1.0 dBFS)…")
+                    progress_callback(0.99, "Ajustement du niveau de sortie…")
                 try:
                     apply_true_peak_normalization(vocals_path, target_dbfs=-1.0)
                     if instru_path:

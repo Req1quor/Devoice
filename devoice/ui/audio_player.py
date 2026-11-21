@@ -1,4 +1,4 @@
-"""Synchronized modern audio preview player for Original, Vocals, and Instrumental."""
+"""Clean consistent audio preview player for Original, Vocals, and Instrumental."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 
 class AudioPreviewPlayer(QWidget):
-    """Synchronized A/B/C player for instant stem comparison."""
+    """Synchronized player for stem preview."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -30,7 +30,6 @@ class AudioPreviewPlayer(QWidget):
         self._instru_path: Optional[Path] = None
         self._active_stem: str = "vocals"
 
-        # Media Backend
         self._audio_output = QAudioOutput(self)
         self._audio_output.setVolume(0.85)
 
@@ -45,16 +44,16 @@ class AudioPreviewPlayer(QWidget):
         card = QFrame(self)
         card.setObjectName("PlayerCard")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(8)
 
         # Header with active track label and time
         top_row = QHBoxLayout()
-        self._label_track = QLabel("PRÉÉCOUTE DES RÉSULTATS")
-        self._label_track.setStyleSheet("font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;")
+        self._label_track = QLabel("Lecture")
+        self._label_track.setStyleSheet("font-size: 11px; font-weight: 600; color: #8a90a4;")
 
         self._label_time = QLabel("00:00 / 00:00")
-        self._label_time.setStyleSheet("font-size: 11px; font-weight: 600; color: #64748b;")
+        self._label_time.setStyleSheet("font-size: 11px; color: #555c70;")
 
         top_row.addWidget(self._label_track)
         top_row.addStretch()
@@ -65,25 +64,23 @@ class AudioPreviewPlayer(QWidget):
         controls_row = QHBoxLayout()
         controls_row.setSpacing(8)
 
-        self._btn_play = QPushButton("Lecture")
-        self._btn_play.setFixedWidth(80)
-        self._btn_play.setStyleSheet(
-            "background-color: #3b82f6; color: #ffffff; font-weight: 700; border: none;"
-        )
+        self._btn_play = QPushButton("Play")
+        self._btn_play.setFixedWidth(65)
         self._btn_play.clicked.connect(self._toggle_play)
         controls_row.addWidget(self._btn_play)
 
-        controls_row.addSpacing(4)
-
-        self._btn_vocals = QPushButton("Voix isolée")
+        self._btn_vocals = QPushButton("Voix")
+        self._btn_vocals.setObjectName("StemActive")
         self._btn_vocals.clicked.connect(lambda: self._switch_stem("vocals"))
         controls_row.addWidget(self._btn_vocals)
 
         self._btn_instru = QPushButton("Instrumentale")
+        self._btn_instru.setObjectName("StemInactive")
         self._btn_instru.clicked.connect(lambda: self._switch_stem("instru"))
         controls_row.addWidget(self._btn_instru)
 
-        self._btn_orig = QPushButton("Mix original")
+        self._btn_orig = QPushButton("Original")
+        self._btn_orig.setObjectName("StemInactive")
         self._btn_orig.clicked.connect(lambda: self._switch_stem("original"))
         controls_row.addWidget(self._btn_orig)
 
@@ -106,7 +103,6 @@ class AudioPreviewPlayer(QWidget):
         instru_path: Path | str,
         original_path: Optional[Path | str] = None,
     ) -> None:
-        """Set paths for vocals, instrumental, and optional original mix."""
         self._vocals_path = Path(vocals_path) if vocals_path else None
         self._instru_path = Path(instru_path) if instru_path else None
         self._original_path = Path(original_path) if original_path else None
@@ -118,7 +114,6 @@ class AudioPreviewPlayer(QWidget):
         self.setVisible(True)
 
     def _switch_stem(self, target_stem: str) -> None:
-        """Seamlessly switch active stem while keeping playback position exact."""
         if target_stem == self._active_stem:
             return
 
@@ -126,30 +121,28 @@ class AudioPreviewPlayer(QWidget):
         self._apply_stem_source(seek_to_zero=False)
 
     def _apply_stem_source(self, seek_to_zero: bool = False) -> None:
-        """Load selected stem audio, preserving playback state and time offset."""
         target_path: Optional[Path] = None
         if self._active_stem == "original":
             target_path = self._original_path
-            title = "PRÉÉCOUTE : MIX ORIGINAL"
+            title = "Original"
         elif self._active_stem == "vocals":
             target_path = self._vocals_path
-            title = "PRÉÉCOUTE : VOIX ISOLÉE (ACAPELLA)"
+            title = "Voix isolée"
         else:
             target_path = self._instru_path
-            title = "PRÉÉCOUTE : INSTRUMENTALE"
+            title = "Instrumentale"
 
         if not target_path or not target_path.exists():
             return
 
         self._label_track.setText(title)
 
-        # Style active stem button
-        active_style = "background-color: #ffffff; color: #000000; font-weight: 700; border: none;"
-        inactive_style = "background-color: #161924; color: #94a3b8; font-weight: 600; border: 1px solid #282f40;"
+        self._btn_vocals.setObjectName("StemActive" if self._active_stem == "vocals" else "StemInactive")
+        self._btn_instru.setObjectName("StemActive" if self._active_stem == "instru" else "StemInactive")
+        self._btn_orig.setObjectName("StemActive" if self._active_stem == "original" else "StemInactive")
 
-        self._btn_vocals.setStyleSheet(active_style if self._active_stem == "vocals" else inactive_style)
-        self._btn_instru.setStyleSheet(active_style if self._active_stem == "instru" else inactive_style)
-        self._btn_orig.setStyleSheet(active_style if self._active_stem == "original" else inactive_style)
+        for b in (self._btn_vocals, self._btn_instru, self._btn_orig):
+            b.setStyle(b.style())
 
         was_playing = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
         current_pos = 0 if seek_to_zero else self._player.position()
@@ -165,7 +158,7 @@ class AudioPreviewPlayer(QWidget):
     def _toggle_play(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
-            self._btn_play.setText("Lecture")
+            self._btn_play.setText("Play")
         else:
             self._player.play()
             self._btn_play.setText("Pause")

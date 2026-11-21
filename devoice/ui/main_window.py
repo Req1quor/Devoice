@@ -1,4 +1,4 @@
-"""Modern minimalist MainWindow for Devoice."""
+"""Clean, normalized, minimalist MainWindow for Devoice."""
 
 from __future__ import annotations
 
@@ -39,13 +39,13 @@ OUTPUT_FORMATS = [
 
 
 class MainWindow(QMainWindow):
-    """Clean, modern, and minimalist studio vocal separation desktop app."""
+    """Minimalist audio separation desktop application."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Devoice — Séparation Vocale Haute Fidélité")
-        self.setMinimumSize(700, 600)
-        self.resize(760, 650)
+        self.setWindowTitle("Devoice")
+        self.setMinimumSize(600, 480)
+        self.resize(640, 520)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
@@ -61,60 +61,52 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(28, 22, 28, 22)
-        root.setSpacing(14)
+        root.setContentsMargins(24, 18, 24, 18)
+        root.setSpacing(12)
 
         # ── (a) Header ────────────────────────────────────────────────────
         header = QHBoxLayout()
 
-        title_col = QVBoxLayout()
-        title_col.setSpacing(2)
         self.title_label = QLabel("DEVOICE")
         self.title_label.setObjectName("TitleLabel")
+        header.addWidget(self.title_label)
 
-        self.subtitle_label = QLabel("Séparation vocale & instrumentale de qualité studio")
-        self.subtitle_label.setObjectName("SubtitleLabel")
-
-        title_col.addWidget(self.title_label)
-        title_col.addWidget(self.subtitle_label)
-
-        header.addLayout(title_col)
         header.addStretch()
 
-        self.device_label = QLabel("Détection matériel...")
+        self.device_label = QLabel("...")
         self.device_label.setObjectName("DeviceBadge")
         header.addWidget(self.device_label, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         root.addLayout(header)
 
-        # ── (b) Hero Drop Zone ───────────────────────────────────────────
+        # ── (b) Drop Zone ─────────────────────────────────────────────────
         self.drop_zone = DropZone()
         self.drop_zone.files_dropped.connect(self._on_files_dropped)
         root.addWidget(self.drop_zone)
 
-        # ── (c) File Queue (Visible only if multiple files) ──────────────
+        # ── (c) File Queue (if multiple) ──────────────────────────────────
         self.file_list = QListWidget()
-        self.file_list.setMaximumHeight(65)
+        self.file_list.setMaximumHeight(60)
         self.file_list.setVisible(False)
         root.addWidget(self.file_list)
 
-        # ── (d) Clean Settings Card ──────────────────────────────────────
+        # ── (d) Settings Card ─────────────────────────────────────────────
         self.settings_card = QFrame()
         self.settings_card.setObjectName("SettingsCard")
         card_layout = QVBoxLayout(self.settings_card)
-        card_layout.setContentsMargins(16, 14, 16, 14)
-        card_layout.setSpacing(12)
+        card_layout.setContentsMargins(14, 12, 14, 12)
+        card_layout.setSpacing(10)
 
         # Row 1: Model & Format & Output
         row1 = QHBoxLayout()
         row1.setSpacing(10)
 
-        row1.addWidget(QLabel("Moteur :"))
+        row1.addWidget(QLabel("Modèle :"))
         self.model_combo = QComboBox()
         for model in ModelManager.available_models():
             self.model_combo.addItem(model.display_name, model.name)
         self.model_combo.setCurrentIndex(0)
-        row1.addWidget(self.model_combo, stretch=3)
+        row1.addWidget(self.model_combo, stretch=2)
 
         row1.addWidget(QLabel("Format :"))
         self.format_combo = QComboBox()
@@ -122,7 +114,7 @@ class MainWindow(QMainWindow):
             self.format_combo.addItem(display_name)
         row1.addWidget(self.format_combo, stretch=1)
 
-        self.output_dir_btn = QPushButton("Dossier d'export")
+        self.output_dir_btn = QPushButton("Dossier…")
         self.output_dir_btn.clicked.connect(self._select_output_dir)
         row1.addWidget(self.output_dir_btn)
 
@@ -131,33 +123,21 @@ class MainWindow(QMainWindow):
         # Divider
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet("color: #1e222f; background-color: #1e222f; max-height: 1px;")
+        divider.setStyleSheet("color: #232736; background-color: #232736; max-height: 1px;")
         card_layout.addWidget(divider)
 
-        # Row 2: Intelligent Auto Studio Enhancement Toggle
+        # Row 2: Post-processing toggle
         auto_row = QHBoxLayout()
         auto_row.setSpacing(10)
 
-        auto_info = QVBoxLayout()
-        auto_info.setSpacing(2)
-
-        self.chk_auto_dsp = QCheckBox("Amélioration studio automatique")
+        self.chk_auto_dsp = QCheckBox("Post-traitement audio (égalisation et réduction du souffle)")
         self.chk_auto_dsp.setChecked(True)
-        self.chk_auto_dsp.setStyleSheet("font-size: 13px; font-weight: 700; color: #ffffff;")
         self.chk_auto_dsp.toggled.connect(self._on_auto_dsp_toggled)
+        auto_row.addWidget(self.chk_auto_dsp, stretch=1)
 
-        self.lbl_auto_sub = QLabel(
-            "Analyse le morceau pour éliminer le souffle, équilibrer le volume et prévenir la saturation."
-        )
-        self.lbl_auto_sub.setStyleSheet("font-size: 11px; color: #94a3b8;")
-
-        auto_info.addWidget(self.chk_auto_dsp)
-        auto_info.addWidget(self.lbl_auto_sub)
-        auto_row.addLayout(auto_info, stretch=1)
-
-        self.btn_toggle_advanced = QPushButton("Options avancées ▾")
+        self.btn_toggle_advanced = QPushButton("Options ▾")
         self.btn_toggle_advanced.setStyleSheet(
-            "background-color: transparent; border: 1px solid #282f40; color: #94a3b8; font-size: 11px; padding: 5px 12px;"
+            "background-color: transparent; border: 1px solid #262a38; color: #8a90a4; font-size: 11px; padding: 4px 10px;"
         )
         self.btn_toggle_advanced.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_advanced.clicked.connect(self._toggle_advanced_drawer)
@@ -165,20 +145,20 @@ class MainWindow(QMainWindow):
 
         card_layout.addLayout(auto_row)
 
-        # Collapsible Advanced Drawer (Hidden by default)
+        # Collapsible Drawer
         self.drawer_widget = QWidget()
         self.drawer_widget.setVisible(False)
         drawer_layout = QGridLayout(self.drawer_widget)
-        drawer_layout.setContentsMargins(4, 8, 4, 4)
-        drawer_layout.setSpacing(10)
+        drawer_layout.setContentsMargins(2, 6, 2, 2)
+        drawer_layout.setSpacing(8)
 
-        self.chk_leveler = QCheckBox("Stabilisateur de volume (Vocal Rider)")
-        self.chk_silence = QCheckBox("Nettoyage du souffle dans les pauses")
-        self.chk_subbass = QCheckBox("Filtre coupe-bas anti-rumble")
-        self.chk_true_peak = QCheckBox("Plafond de sécurité anti-saturation")
-        self.chk_deesser = QCheckBox("Atténuation des sifflements (De-Esser)")
-        self.chk_dereverb = QCheckBox("Dé-réverbération (Assèchement)")
-        self.chk_debleed = QCheckBox("Anti-fuite de batterie (De-bleed)")
+        self.chk_leveler = QCheckBox("Égalisation de volume")
+        self.chk_silence = QCheckBox("Réduction du souffle")
+        self.chk_subbass = QCheckBox("Filtre coupe-bas")
+        self.chk_true_peak = QCheckBox("Limiteur anti-crête")
+        self.chk_deesser = QCheckBox("De-Esser (sifflements)")
+        self.chk_dereverb = QCheckBox("Dé-réverbération")
+        self.chk_debleed = QCheckBox("Atténuation des fuites")
 
         drawer_layout.addWidget(self.chk_leveler, 0, 0)
         drawer_layout.addWidget(self.chk_silence, 0, 1)
@@ -192,12 +172,12 @@ class MainWindow(QMainWindow):
 
         root.addWidget(self.settings_card)
 
-        # ── (e) Hero Action Button ───────────────────────────────────────
+        # ── (e) Action Button ─────────────────────────────────────────────
         actions = QHBoxLayout()
-        actions.setSpacing(12)
+        actions.setSpacing(10)
 
-        self.start_btn = QPushButton("SÉPARER L'AUDIO")
-        self.start_btn.setObjectName("HeroButton")
+        self.start_btn = QPushButton("Séparer")
+        self.start_btn.setObjectName("PrimaryButton")
         self.start_btn.setEnabled(False)
         self.start_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.start_btn.clicked.connect(self._start_separation)
@@ -212,18 +192,18 @@ class MainWindow(QMainWindow):
 
         root.addLayout(actions)
 
-        # ── (f) Status & Progress ────────────────────────────────────────
+        # ── (f) Status & Progress ─────────────────────────────────────────
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
         root.addWidget(self.progress_bar)
 
-        self.status_label = QLabel("Déposez un morceau pour démarrer")
+        self.status_label = QLabel("Prêt")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 500;")
+        self.status_label.setStyleSheet("color: #8a90a4; font-size: 11px;")
         root.addWidget(self.status_label)
 
-        # ── (g) Integrated Triple Audio Player ───────────────────────────
+        # ── (g) Audio Player ──────────────────────────────────────────────
         self.audio_player = AudioPreviewPlayer()
         root.addWidget(self.audio_player)
 
@@ -234,16 +214,12 @@ class MainWindow(QMainWindow):
     def _toggle_advanced_drawer(self) -> None:
         is_visible = self.drawer_widget.isVisible()
         self.drawer_widget.setVisible(not is_visible)
-        self.btn_toggle_advanced.setText("Masquer les options ▴" if not is_visible else "Options avancées ▾")
+        self.btn_toggle_advanced.setText("Options ▴" if not is_visible else "Options ▾")
 
     def _on_auto_dsp_toggled(self, checked: bool) -> None:
         self.drawer_widget.setEnabled(checked)
-        if not checked:
-            self.lbl_auto_sub.setText("Mode brut : acapella 100% pure du modèle de neurones, aucun traitement.")
-        else:
-            self.lbl_auto_sub.setText("Analyse le morceau pour éliminer le souffle, équilibrer le volume et prévenir la saturation.")
-            if self._current_diagnostic:
-                self._apply_diagnostic_to_checkboxes(self._current_diagnostic)
+        if checked and self._current_diagnostic:
+            self._apply_diagnostic_to_checkboxes(self._current_diagnostic)
 
     def _apply_diagnostic_to_checkboxes(self, diag: AudioDiagnostic) -> None:
         self.chk_subbass.setChecked(diag.has_subbass_rumble)
@@ -271,7 +247,7 @@ class MainWindow(QMainWindow):
             self.file_list.setVisible(False)
 
         self.start_btn.setEnabled(True)
-        self.status_label.setText(f"{primary_file.name} est prêt pour la séparation")
+        self.status_label.setText(f"{primary_file.name} prêt")
 
         try:
             diag = analyze_audio_track(primary_file)
@@ -284,13 +260,13 @@ class MainWindow(QMainWindow):
     def _select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Sélectionner le dossier d'export",
+            "Dossier de sortie",
             str(self.output_dir) if self.output_dir else "",
         )
         if directory:
             self.output_dir = Path(directory)
             self.output_dir_btn.setText(self.output_dir.name)
-            self.status_label.setText(f"Dossier d'export : {self.output_dir.name}")
+            self.status_label.setText(f"Dossier : {self.output_dir.name}")
 
     def _start_separation(self) -> None:
         if not self.pending_files:
@@ -332,19 +308,19 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
         self.cancel_btn.setVisible(True)
         self.start_btn.setEnabled(False)
-        self.status_label.setText("Séparation audio en cours...")
+        self.status_label.setText("Séparation en cours…")
 
     def _cancel_separation(self) -> None:
         if self.worker is not None:
             self.worker.cancel()
-            self.status_label.setText("Annulation en cours...")
+            self.status_label.setText("Annulation…")
 
     def _on_progress(self, pct: int, msg: str) -> None:
         self.progress_bar.setValue(pct)
         self.status_label.setText(msg)
 
     def _on_file_completed(self, filename: str, results: Dict[str, Any]) -> None:
-        self.status_label.setText(f"{filename} séparé avec succès !")
+        self.status_label.setText(f"{filename} terminé")
         vocals_path = Path(results.get("vocals", ""))
         instru_path = Path(results.get("instru", "") or results.get("instrumental", ""))
 
@@ -356,7 +332,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_file_error(self, filename: str, error: str) -> None:
-        self.status_label.setText(f"Erreur sur {filename} : {error}")
+        self.status_label.setText(f"Erreur : {error}")
 
     def _on_all_completed(self) -> None:
         self.progress_bar.setVisible(False)
@@ -372,14 +348,10 @@ class MainWindow(QMainWindow):
 
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
-                self.device_label.setText(gpu_name)
-                self.device_label.setStyleSheet(
-                    "background-color: #0d281e; color: #34d399; border: 1px solid #166534; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
-                )
+                # Keep it short, e.g. "RTX 3060"
+                short_gpu = gpu_name.replace("NVIDIA GeForce ", "").replace("NVIDIA ", "")
+                self.device_label.setText(short_gpu)
             else:
                 self.device_label.setText("CPU")
-                self.device_label.setStyleSheet(
-                    "background-color: #1e2433; color: #94a3b8; border: 1px solid #2d374d; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
-                )
         except Exception:
             self.device_label.setText("CPU")
