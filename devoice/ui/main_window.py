@@ -176,7 +176,17 @@ class MainWindow(QMainWindow):
         row_sil.addWidget(self.lbl_silence_reason)
         diag_layout.addLayout(row_sil)
 
-        # 5. True-Peak Normalization
+        # 5. Vocal Rider / Dynamic Leveler
+        row_lev = QVBoxLayout()
+        row_lev.setSpacing(1)
+        self.cb_leveler = QCheckBox("Stabilisateur de gain vocal (Vocal Rider Studio)")
+        self.lbl_leveler_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_leveler_reason.setObjectName("ReasonLabel")
+        row_lev.addWidget(self.cb_leveler)
+        row_lev.addWidget(self.lbl_leveler_reason)
+        diag_layout.addLayout(row_lev)
+
+        # 6. True-Peak Normalization
         row_tp = QVBoxLayout()
         row_tp.setSpacing(1)
         self.cb_true_peak = QCheckBox("Normalisation True-Peak (-1.0 dBFS)")
@@ -186,7 +196,7 @@ class MainWindow(QMainWindow):
         row_tp.addWidget(self.lbl_true_peak_reason)
         diag_layout.addLayout(row_tp)
 
-        # 6. Spectral De-bleed
+        # 7. Spectral De-bleed
         row_deb = QVBoxLayout()
         row_deb.setSpacing(1)
         self.cb_debleed = QCheckBox("Dé-bleed spectral (Anti-fuite cymbales / aigus)")
@@ -242,6 +252,7 @@ class MainWindow(QMainWindow):
             self.cb_deesser,
             self.cb_dereverb,
             self.cb_silence,
+            self.cb_leveler,
             self.cb_true_peak,
             self.cb_debleed,
         ):
@@ -253,6 +264,7 @@ class MainWindow(QMainWindow):
             self.lbl_deesser_reason,
             self.lbl_dereverb_reason,
             self.lbl_silence_reason,
+            self.lbl_leveler_reason,
             self.lbl_true_peak_reason,
             self.lbl_debleed_reason,
         ):
@@ -299,7 +311,15 @@ class MainWindow(QMainWindow):
         self.lbl_silence_reason.setText(f"{sil_icon} {diag.silence_reason}")
         self.lbl_silence_reason.setProperty("recommended", "true" if diag.has_noise_in_pauses else "false")
 
-        # 5. True-Peak Normalization
+        # 5. Vocal Rider / Dynamic Leveler
+        self.cb_leveler.setEnabled(True)
+        self.cb_leveler.setChecked(diag.has_dynamic_imbalance)
+        self.cb_leveler.setText("Stabilisateur de gain vocal (Vocal Rider Studio)")
+        lev_icon = "🟢 Recommandé :" if diag.has_dynamic_imbalance else "⚪ Inactif conseillé :"
+        self.lbl_leveler_reason.setText(f"{lev_icon} {diag.leveler_reason}")
+        self.lbl_leveler_reason.setProperty("recommended", "true" if diag.has_dynamic_imbalance else "false")
+
+        # 6. True-Peak Normalization
         self.cb_true_peak.setEnabled(True)
         self.cb_true_peak.setChecked(diag.recommend_true_peak)
         self.cb_true_peak.setText("Normalisation True-Peak (-1.0 dBFS)")
@@ -307,7 +327,7 @@ class MainWindow(QMainWindow):
         self.lbl_true_peak_reason.setText(f"{tp_icon} {diag.true_peak_reason}")
         self.lbl_true_peak_reason.setProperty("recommended", "true" if diag.recommend_true_peak else "false")
 
-        # 6. Spectral De-bleed
+        # 7. Spectral De-bleed
         self.cb_debleed.setEnabled(True)
         self.cb_debleed.setChecked(diag.recommend_debleed)
         self.cb_debleed.setText("Dé-bleed spectral (Anti-fuite cymbales / aigus)")
@@ -321,6 +341,7 @@ class MainWindow(QMainWindow):
             self.lbl_deesser_reason,
             self.lbl_dereverb_reason,
             self.lbl_silence_reason,
+            self.lbl_leveler_reason,
             self.lbl_true_peak_reason,
             self.lbl_debleed_reason,
         ):
@@ -379,6 +400,7 @@ class MainWindow(QMainWindow):
             deesser_freq=sibilance_hz,
             dereverb=self.cb_dereverb.isChecked(),
             silence_purifier=self.cb_silence.isChecked(),
+            vocal_leveler=self.cb_leveler.isChecked(),
             true_peak=self.cb_true_peak.isChecked(),
             spectral_debleed=self.cb_debleed.isChecked(),
         )

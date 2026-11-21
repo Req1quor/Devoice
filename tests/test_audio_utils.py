@@ -14,6 +14,7 @@ from devoice.audio_utils import (
     apply_silence_purifier,
     apply_subbass_filter,
     apply_true_peak_normalization,
+    apply_vocal_leveler,
     get_audio_info,
     normalize_audio,
 )
@@ -137,4 +138,33 @@ def test_apply_silence_purifier(tmp_path: Path):
     # Quiet section after release settles should be attenuated significantly
     quiet_out = cleaned_data[int(sr * 0.7) :]
     assert np.max(np.abs(quiet_out)) < 0.0005
+
+
+def test_apply_vocal_leveler(tmp_path: Path):
+    """Verify vocal leveler stabilizes volume differences between quiet and loud sections."""
+    sr = 44100
+    # 1.0s quiet vocal (peak 0.08) followed by 1.0s loud vocal (peak 0.60)
+    t = np.linspace(0, 1.0, sr, endpoint=False)
+    quiet_section = 0.08 * np.sin(2 * np.pi * 350 * t)
+    loud_section = 0.60 * np.sin(2 * np.pi * 350 * t)
+    signal = np.concatenate([quiet_section, loud_section])
+
+    wav_path = tmp_path / "leveler_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_vocal_leveler(wav_path, max_boost_db=4.0, max_cut_db=4.0)
+    assert res.exists()
+    out_data, _ = sf.read(str(res))
+    assert len(out_data) == len(signal)
+
+    # In the leveled output, the quiet section should be boosted and loud section tamed
+    quiet_out = out_data[int(sr * 0.2) : int(sr * 0.8)]
+    loud_out = out_data[int(sr * 1.2) : int(sr * 1.8)]
+
+    ratio_before = 0.60 / 0.08  # 7.5x difference (~17.5 dB)
+    ratio_after = np.max(np.abs(loud_out)) / np.max(np.abs(quiet_out))
+
+    # Dynamic spread between the two sections should be significantly reduced
+    assert ratio_after < ratio_before
+
 

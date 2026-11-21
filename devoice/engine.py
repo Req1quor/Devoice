@@ -18,6 +18,7 @@ from devoice.audio_utils import (
     apply_silence_purifier,
     apply_spectral_debleed,
     apply_true_peak_normalization,
+    apply_vocal_leveler,
 )
 from devoice.model_manager import ModelManager
 
@@ -44,6 +45,7 @@ class SeparationEngine:
         deesser_freq: float = 7200.0,
         dereverb: bool = False,
         silence_purifier: bool = True,
+        vocal_leveler: bool = True,
         true_peak: bool = True,
         spectral_debleed: bool = False,
     ) -> None:
@@ -59,6 +61,7 @@ class SeparationEngine:
         self.deesser_freq = deesser_freq
         self.dereverb = dereverb
         self.silence_purifier = silence_purifier
+        self.vocal_leveler = vocal_leveler
         self.true_peak = true_peak
         self.spectral_debleed = spectral_debleed
 
@@ -253,25 +256,34 @@ class SeparationEngine:
             # 4. Dynamic De-Esser
             if self.deesser:
                 if progress_callback:
-                    progress_callback(0.94, f"De-Esser dynamique ({self.deesser_freq/1000:.1f} kHz)…")
+                    progress_callback(0.93, f"De-Esser dynamique ({self.deesser_freq/1000:.1f} kHz)…")
                 try:
                     apply_dynamic_deesser(vocals_path, sibilance_freq_hz=self.deesser_freq)
                 except Exception as exc:
                     logger.warning("Could not apply dynamic de-esser: %s", exc)
 
-            # 5. Spectral De-bleed
+            # 5. Vocal Rider / Dynamic Leveler (stabilise les volumes et compense les trous)
+            if self.vocal_leveler:
+                if progress_callback:
+                    progress_callback(0.95, "Vocal Rider Studio (Stabilisation dynamique du gain)…")
+                try:
+                    apply_vocal_leveler(vocals_path, max_boost_db=4.5, max_cut_db=4.5)
+                except Exception as exc:
+                    logger.warning("Could not apply vocal leveler: %s", exc)
+
+            # 6. Spectral De-bleed
             if self.spectral_debleed and instru_path and instru_path.is_file():
                 if progress_callback:
-                    progress_callback(0.96, "Dé-bleed spectral…")
+                    progress_callback(0.97, "Dé-bleed spectral…")
                 try:
                     apply_spectral_debleed(vocals_path, instru_path, reduction_db=2.5)
                 except Exception as exc:
                     logger.warning("Could not apply spectral de-bleed: %s", exc)
 
-            # 6. True-Peak Normalization (-1.0 dBFS)
+            # 7. True-Peak Normalization (-1.0 dBFS)
             if self.true_peak:
                 if progress_callback:
-                    progress_callback(0.98, "Calibration True-Peak (-1.0 dBFS)…")
+                    progress_callback(0.99, "Calibration True-Peak (-1.0 dBFS)…")
                 try:
                     apply_true_peak_normalization(vocals_path, target_dbfs=-1.0)
                     if instru_path:

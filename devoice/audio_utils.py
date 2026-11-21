@@ -81,6 +81,11 @@ class AudioDiagnostic:
     recommend_debleed: bool
     debleed_reason: str
 
+    # Dynamic Leveling & Vocal Rider
+    dynamic_spread_db: float = 0.0
+    has_dynamic_imbalance: bool = True
+    leveler_reason: str = ""
+
     @property
     def recommend_subbass(self) -> bool:
         return self.has_subbass_rumble
@@ -260,6 +265,32 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
             q90 = float(np.percentile(frame_rms, 90)) + 1e-6
             reverb_index = q25 / q90
 
+    # 5. Macro-dynamic variance / vocal level fluctuations
+    dynamic_spread_db = 0.0
+    has_dynamic_imbalance = False
+    leveler_reason = "Dynamique vocale stable"
+
+    if slice_len > sr:
+        win_len = int(sr * 0.30)
+        h_len = int(sr * 0.05)
+        active_db = []
+        for i in range(0, slice_len - win_len, h_len):
+            w_rms = np.sqrt(np.mean(sample_slice[i : i + win_len] ** 2))
+            if w_rms > 0.003:  # > -50 dBFS
+                active_db.append(20.0 * math.log10(w_rms))
+        if len(active_db) >= 8:
+            p15 = float(np.percentile(active_db, 15))
+            p85 = float(np.percentile(active_db, 85))
+            dynamic_spread_db = max(0.0, p85 - p15)
+
+    # Rule: Vocal Leveler recommendation
+    # On busy productions, verses and choruses typically deviate by more than 5.5 dB
+    has_dynamic_imbalance = dynamic_spread_db >= 5.5 or rms_dbfs < -20.0
+    if has_dynamic_imbalance:
+        leveler_reason = f"Écarts de dynamique détectés (±{dynamic_spread_db/2:.1f} dB) · Stabilisation uniforme conseillée"
+    else:
+        leveler_reason = f"Niveau homogène (±{dynamic_spread_db/2:.1f} dB) · Préservation de la dynamique naturelle"
+
     # ── Tailored Recommendation Logic ───────────────────────────────────
 
     # Rule 1: Adaptive Sub-Bass Filter
@@ -329,6 +360,9 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
         high_freq_ratio=high_ratio,
         recommend_debleed=rec_debleed,
         debleed_reason=debleed_reason,
+        dynamic_spread_db=dynamic_spread_db,
+        has_dynamic_imbalance=has_dynamic_imbalance,
+        leveler_reason=leveler_reason,
     )
 
 
@@ -417,8 +451,12 @@ def apply_dynamic_deesser(
     return path
 
 
-def apply_dereverb_clean(audio_path: Path | str, dry_ratio: float = 0.30) -> Path:
-    """De-Reverb module: enhances direct vocal transients and suppresses diffuse reverb decay."""
+def apply_dereverb_clean(
+    audio_path: Path | str,
+    max_decay_reduction_db: float = 4.0,
+    dry_ratio: Optional[float] = None,
+) -> Path:
+    """De-Reverb module: preserves steady vocal vowels and direct attacks while suppressing lingering decay tails."""
     path = Path(audio_path)
     data, sr = sf.read(str(path), dtype="float32")
 
@@ -428,13 +466,15 @@ def apply_dereverb_clean(audio_path: Path | str, dry_ratio: float = 0.30) -> Pat
         channels_data = [data[:, ch] for ch in range(data.shape[1])]
 
     out_channels = []
-    for ch_signal in channels_data:
-        # Compute short-time energy envelope
-        env = np.abs(ch_signal)
-        # Fast envelope (direct sound) vs slow envelope (reverb tail)
-        fast_a = math.exp(-1.0 / (0.005 * sr))
-        slow_a = math.exp(-1.0 / (0.120 * sr))
+    # Fast envelope (10ms) vs slow envelope (180ms)
+    fast_a = math.exp(-1.0 / (0.010 * sr))
+    slow_a = math.exp(-1.0 / (0.180 * sr))
+    if dry_ratio is not None:
+        max_decay_reduction_db = max(2.0, min(8.0, dry_ratio * 12.0))
+    max_att = math.pow(10.0, -abs(max_decay_reduction_db) / 20.0)
 
+    for ch_signal in channels_data:
+        env = np.abs(ch_signal)
         fast_env = np.zeros_like(env)
         slow_env = np.zeros_like(env)
         f_val, s_val = 0.0, 0.0
@@ -446,9 +486,12 @@ def apply_dereverb_clean(audio_path: Path | str, dry_ratio: float = 0.30) -> Pat
             fast_env[i] = f_val
             slow_env[i] = s_val
 
-        # Transientness: where fast energy significantly exceeds slow decay
-        transient_ratio = fast_env / (slow_env + 1e-6)
-        gain = np.clip(1.0 - (1.0 - dry_ratio) / (transient_ratio + 1.0), 0.65, 1.0)
+        # When fast_env >= 0.7 * slow_env: singing is active/sustained -> gain = 1.0 (zero reduction)
+        # When fast_env < 0.7 * slow_env: signal has stopped, decay tail remains -> smoothly attenuate
+        ratio = fast_env / (slow_env + 1e-6)
+        gain = np.ones_like(ratio)
+        tail_mask = ratio < 0.7
+        gain[tail_mask] = np.clip(max_att + (1.0 - max_att) * (ratio[tail_mask] / 0.7), max_att, 1.0)
 
         cleaned = ch_signal * gain
         out_channels.append(cleaned)
@@ -461,10 +504,10 @@ def apply_dereverb_clean(audio_path: Path | str, dry_ratio: float = 0.30) -> Pat
 
 def apply_silence_purifier(
     audio_path: Path | str,
-    threshold_db: float = -42.0,
-    max_attenuation_db: float = 24.0,
+    threshold_db: float = -46.0,
+    max_attenuation_db: float = 18.0,
 ) -> Path:
-    """Silence purifier / Smart Expander: cleans ghost bleed & noise floor during vocal pauses."""
+    """Silence purifier / Soft-Knee Downward Expander: cleans ghost bleed & noise in pauses without chopping phrase endings."""
     path = Path(audio_path)
     data, sr = sf.read(str(path), dtype="float32")
 
@@ -477,9 +520,9 @@ def apply_silence_purifier(
         channels_data = [data[:, ch] for ch in range(data.shape[1])]
 
     out_channels = []
-    # Smooth attack (15ms) and release (80ms) to preserve natural breath endings
-    att_a = math.exp(-1.0 / (0.015 * sr))
-    rel_a = math.exp(-1.0 / (0.080 * sr))
+    # Musical attack (20ms) and release (120ms) for transparent gating
+    att_a = math.exp(-1.0 / (0.020 * sr))
+    rel_a = math.exp(-1.0 / (0.120 * sr))
 
     for ch_signal in channels_data:
         env = np.abs(ch_signal)
@@ -487,7 +530,13 @@ def apply_silence_purifier(
         curr_gain = 1.0
 
         for i in range(len(env)):
-            target_gain = 1.0 if env[i] >= thresh_linear else att_linear
+            val = env[i]
+            if val >= thresh_linear:
+                target_gain = 1.0
+            else:
+                # Soft-knee proportional expansion: smooth transition into quiet
+                target_gain = max(att_linear, min(1.0, val / thresh_linear))
+
             if target_gain > curr_gain:
                 curr_gain = att_a * curr_gain + (1 - att_a) * target_gain
             else:
@@ -500,6 +549,105 @@ def apply_silence_purifier(
     final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
     sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
     logger.info("Applied Silence Purifier / Anti-Ghosting on %s", path.name)
+    return path
+
+
+def apply_vocal_leveler(
+    audio_path: Path | str,
+    target_rms_db: Optional[float] = None,
+    max_boost_db: float = 4.5,
+    max_cut_db: float = 4.5,
+    leveling_strength: float = 0.75,
+) -> Path:
+    """Vocal Rider / Dynamic Leveler: stabilizes vocal volume fluctuations across the song.
+
+    Ensures vocals remain at a stable target loudness across heavy choruses and sparse verses,
+    eliminating perceived volume dips and holes without audible pumping or noise amplification.
+    """
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+
+    is_mono = data.ndim == 1
+    if is_mono:
+        channels_data = [data]
+        mix_for_analysis = data
+    else:
+        channels_data = [data[:, ch] for ch in range(data.shape[1])]
+        mix_for_analysis = np.mean(data, axis=1)
+
+    total_samples = len(mix_for_analysis)
+    if total_samples < sr:
+        return path
+
+    # Sliding window RMS calculation (300ms window, 25ms hop)
+    win_len = int(sr * 0.300)
+    hop_len = int(sr * 0.025)
+    num_hops = max(1, (total_samples - win_len) // hop_len)
+
+    frame_energies = np.zeros(num_hops, dtype=np.float32)
+    for k in range(num_hops):
+        start = k * hop_len
+        frame = mix_for_analysis[start : start + win_len]
+        frame_energies[k] = np.sqrt(np.mean(frame**2))
+
+    # Speech Activity Gating threshold (-46 dBFS)
+    speech_threshold = 0.005
+    active_mask = frame_energies >= speech_threshold
+
+    if not np.any(active_mask):
+        return path
+
+    # If target_rms_db not specified, use median loudness of active vocal speech
+    active_energies = frame_energies[active_mask]
+    active_dbs = 20.0 * np.log10(np.clip(active_energies, 1e-6, 1.0))
+    if target_rms_db is None:
+        target_db = float(np.median(active_dbs))
+    else:
+        target_db = target_rms_db
+
+    # Compute gain adjustment per frame (in dB)
+    frame_gains_db = np.zeros(num_hops, dtype=np.float32)
+    # Active frames: calculate difference from target, scaled by leveling strength
+    diff_db = (target_db - active_dbs) * leveling_strength
+    frame_gains_db[active_mask] = np.clip(diff_db, -abs(max_cut_db), abs(max_boost_db))
+    # Pauses / silence: unity gain (0.0 dB) to prevent noise boosting
+    frame_gains_db[~active_mask] = 0.0
+
+    # Convert to linear multiplier
+    frame_gains_linear = np.power(10.0, frame_gains_db / 20.0)
+
+    # Interpolate to sample resolution
+    hop_centers = np.arange(num_hops) * hop_len + win_len // 2
+    sample_indices = np.arange(total_samples)
+    interpolated_gain = np.interp(
+        sample_indices,
+        hop_centers,
+        frame_gains_linear,
+        left=frame_gains_linear[0],
+        right=frame_gains_linear[-1],
+    )
+
+    # Smooth gain curve with analog ballistics:
+    # fast attack ~35ms (tames sudden bursts), musical release ~250ms (smooth natural recovery)
+    att_alpha = math.exp(-1.0 / (0.035 * sr))
+    rel_alpha = math.exp(-1.0 / (0.250 * sr))
+
+    smooth_gain = np.zeros(total_samples, dtype=np.float32)
+    curr = 1.0
+    for i in range(total_samples):
+        target = interpolated_gain[i]
+        if target < curr:  # Gain reduction (attenuating louder section)
+            curr = att_alpha * curr + (1.0 - att_alpha) * target
+        else:  # Gain boost (bringing up quiet section)
+            curr = rel_alpha * curr + (1.0 - rel_alpha) * target
+        smooth_gain[i] = curr
+
+    # Apply smooth gain envelope to each audio channel
+    out_channels = [ch * smooth_gain for ch in channels_data]
+
+    final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
+    sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
+    logger.info("Applied Vocal Rider / Gain Leveler (Target: %.1f dBFS) on %s", target_db, path.name)
     return path
 
 

@@ -32,6 +32,7 @@ class SeparationJob:
     deesser_freq: float = 7200.0
     dereverb: bool = False
     silence_purifier: bool = True
+    vocal_leveler: bool = True
     true_peak: bool = True
     spectral_debleed: bool = False
 
@@ -88,6 +89,7 @@ class SeparationWorker(QThread):
         deesser_freq: float = 7200.0,
         dereverb: bool = False,
         silence_purifier: bool = True,
+        vocal_leveler: bool = True,
         true_peak: bool = True,
         spectral_debleed: bool = False,
         parent: Optional[Any] = None,
@@ -102,6 +104,7 @@ class SeparationWorker(QThread):
         self._deesser_freq = deesser_freq
         self._dereverb = dereverb
         self._silence_purifier = silence_purifier
+        self._vocal_leveler = vocal_leveler
         self._true_peak = true_peak
         self._spectral_debleed = spectral_debleed
         self._cancel_requested = False
@@ -120,6 +123,7 @@ class SeparationWorker(QThread):
                     deesser_freq=self._deesser_freq,
                     dereverb=self._dereverb,
                     silence_purifier=self._silence_purifier,
+                    vocal_leveler=self._vocal_leveler,
                     true_peak=self._true_peak,
                     spectral_debleed=self._spectral_debleed,
                 )
@@ -196,6 +200,7 @@ class SeparationWorker(QThread):
                 deesser_freq=job.deesser_freq,
                 dereverb=job.dereverb,
                 silence_purifier=job.silence_purifier,
+                vocal_leveler=job.vocal_leveler,
                 true_peak=job.true_peak,
                 spectral_debleed=job.spectral_debleed,
             )
