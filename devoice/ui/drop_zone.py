@@ -1,4 +1,4 @@
-"""Monospace ASCII / Dither drag & drop widget for Devoice."""
+"""High-Contrast Monospace ASCII / Dither drag & drop widget for Devoice."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QFileDialog, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFileDialog, QFrame, QLabel, QVBoxLayout, QWidget
 
 SUPPORTED_FORMATS = {
     ".mp3",
@@ -22,8 +22,8 @@ SUPPORTED_FORMATS = {
 }
 
 
-class DropZone(QWidget):
-    """ASCII / Dither hardware styled drop target for audio files."""
+class DropZone(QFrame):
+    """ASCII / Dither hardware styled drop target with high contrast readability."""
 
     files_dropped = pyqtSignal(list)
 
@@ -32,33 +32,33 @@ class DropZone(QWidget):
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(140)
+        self.setMinimumHeight(150)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(6)
 
-        self._banner_label = QLabel("[ ░░░▒▒▓▓ DÉPOSER LE FICHIER AUDIO ICI ▓▓▒▒░░░ ]")
+        self._banner_label = QLabel("[ ░░▒▒▓▓  DÉPOSER LE FICHIER AUDIO ICI  ▓▓▒▒░░ ]")
         self._banner_label.setObjectName("DropZoneIcon")
         self._banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._banner_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #a1a1aa; letter-spacing: 1px;"
+            "font-family: 'Consolas', monospace; font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: 1.2px;"
         )
 
-        self._text_label = QLabel(">> OU CLIQUER POUR PARCOURIR LE DISQUE")
+        self._text_label = QLabel(">> OU CLIQUER POUR PARCOURIR LE DISQUE <<")
         self._text_label.setObjectName("DropZoneLabel")
         self._text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._text_label.setWordWrap(True)
         self._text_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700; color: #ffffff; letter-spacing: 0.8px;"
+            "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px;"
         )
 
-        self._sub_label = QLabel("FORMATS: WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
+        self._sub_label = QLabel("FORMATS SUPPORTÉS : WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
         self._sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._sub_label.setWordWrap(True)
         self._sub_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 10px; color: #52525b; letter-spacing: 1px;"
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.8px;"
         )
 
         layout.addWidget(self._banner_label)
@@ -68,31 +68,31 @@ class DropZone(QWidget):
     def set_loaded_file(self, path: Path | None) -> None:
         """Update drop zone appearance when a file is loaded."""
         if path is not None:
-            self._banner_label.setText("[+] FICHIER SOURCE CHARGÉ")
+            self._banner_label.setText("[+] FICHIER SOURCE RECONNU ET PRÊT")
             self._banner_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; color: #22c55e; letter-spacing: 1px;"
+                "font-family: 'Consolas', monospace; font-size: 12px; font-weight: 800; color: #22c55e; letter-spacing: 1px;"
             )
-            self._text_label.setText(f">> {path.name.upper()}")
+            self._text_label.setText(f">> {path.name.upper()} <<")
             self._text_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;"
+                "font-family: 'Consolas', monospace; font-size: 15px; font-weight: 900; color: #ffffff; letter-spacing: 0.8px;"
             )
-            self._sub_label.setText("STATUS: PRÊT POUR EXTRACTION // CLIQUER OU GLISSER POUR REMPLACER")
+            self._sub_label.setText("STATUS : CALIBRAGE SPECTRAL VALIDÉ · CLIQUER OU GLISSER POUR REMPLACER")
             self._sub_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 10px; color: #71717a; letter-spacing: 0.5px;"
+                "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; color: #38bdf8; letter-spacing: 0.6px;"
             )
             self.setProperty("loaded", "true")
         else:
-            self._banner_label.setText("[ ░░░▒▒▓▓ DÉPOSER LE FICHIER AUDIO ICI ▓▓▒▒░░░ ]")
+            self._banner_label.setText("[ ░░▒▒▓▓  DÉPOSER LE FICHIER AUDIO ICI  ▓▓▒▒░░ ]")
             self._banner_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #a1a1aa; letter-spacing: 1px;"
+                "font-family: 'Consolas', monospace; font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: 1.2px;"
             )
-            self._text_label.setText(">> OU CLIQUER POUR PARCOURIR LE DISQUE")
+            self._text_label.setText(">> OU CLIQUER POUR PARCOURIR LE DISQUE <<")
             self._text_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 12px; font-weight: 700; color: #ffffff; letter-spacing: 0.8px;"
+                "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px;"
             )
-            self._sub_label.setText("FORMATS: WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
+            self._sub_label.setText("FORMATS SUPPORTÉS : WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
             self._sub_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 10px; color: #52525b; letter-spacing: 1px;"
+                "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.8px;"
             )
             self.setProperty("loaded", "false")
         self.setStyle(self.style())
@@ -100,7 +100,7 @@ class DropZone(QWidget):
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setStyleSheet("#DropZone { border: 1px solid #ffffff; background-color: #121217; }")
+            self.setStyleSheet("#DropZone { border: 2px solid #38bdf8; background-color: #1a2234; }")
         else:
             event.ignore()
 

@@ -1,4 +1,4 @@
-"""Primary window for Devoice in terminal ASCII / dither hardware DA."""
+"""Primary window for Devoice in high-contrast terminal ASCII / dither hardware DA."""
 
 from __future__ import annotations
 
@@ -39,13 +39,13 @@ OUTPUT_FORMATS = [
 
 
 class MainWindow(QMainWindow):
-    """Primary window assembling the ASCII / dither terminal UI and adaptive separation workflow."""
+    """Primary window assembling high-contrast ASCII / dither terminal UI and adaptive separation."""
 
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("DEVOICE // NEURAL AUDIO SEPARATION ARCHITECTURE")
-        self.setMinimumSize(820, 750)
-        self.resize(900, 800)
+        self.setMinimumSize(860, 780)
+        self.resize(940, 840)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
@@ -63,14 +63,14 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(24, 18, 24, 18)
-        root.setSpacing(10)
+        root.setContentsMargins(24, 20, 24, 20)
+        root.setSpacing(12)
 
         # ── (a) Top Terminal Banner ───────────────────────────────────────
         header = QHBoxLayout()
 
         title_col = QVBoxLayout()
-        title_col.setSpacing(2)
+        title_col.setSpacing(3)
         self.title_label = QLabel("// DEVOICE [V2.4 / SOTA]")
         self.title_label.setObjectName("TitleLabel")
 
@@ -89,14 +89,14 @@ class MainWindow(QMainWindow):
 
         root.addLayout(header)
 
-        # ── (b) Hero Drop Zone (ASCII / Dither) ───────────────────────────
+        # ── (b) Hero Drop Zone (High-Contrast Dither Frame) ───────────────
         self.drop_zone = DropZone()
         self.drop_zone.files_dropped.connect(self._on_files_dropped)
         root.addWidget(self.drop_zone)
 
         # ── (c) File Queue (Visible only if multiple files) ──────────────
         self.file_list = QListWidget()
-        self.file_list.setMaximumHeight(70)
+        self.file_list.setMaximumHeight(75)
         self.file_list.setVisible(False)
         root.addWidget(self.file_list)
 
@@ -104,14 +104,14 @@ class MainWindow(QMainWindow):
         self.diag_card = QFrame()
         self.diag_card.setObjectName("DiagnosticCard")
         diag_layout = QVBoxLayout(self.diag_card)
-        diag_layout.setContentsMargins(12, 10, 12, 10)
-        diag_layout.setSpacing(8)
+        diag_layout.setContentsMargins(14, 12, 14, 12)
+        diag_layout.setSpacing(10)
 
         # Mode Selector & Status Header
         top_bar = QHBoxLayout()
-        top_bar.setSpacing(6)
+        top_bar.setSpacing(8)
 
-        # Sharp Monospace Mode Switcher Tabs
+        # High-Contrast Monospace Mode Switcher Tabs
         self.btn_preset_pure = QPushButton("[ RAW SEPARATION (BRUT SOTA) ]")
         self.btn_preset_pure.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_preset_pure.clicked.connect(self._apply_pure_mode)
@@ -130,10 +130,10 @@ class MainWindow(QMainWindow):
 
         diag_layout.addLayout(top_bar)
 
-        # 2-Column Grid of Sharp ASCII Hardware Rack Cards
+        # 2-Column Grid of High-Contrast Sharp ASCII Hardware Rack Cards
         self.grid_layout = QGridLayout()
-        self.grid_layout.setHorizontalSpacing(8)
-        self.grid_layout.setVerticalSpacing(6)
+        self.grid_layout.setHorizontalSpacing(10)
+        self.grid_layout.setVerticalSpacing(8)
 
         # 1. Pitch-Tracked Sub-Bass
         self.card_subbass = StudioModuleCard(
@@ -190,9 +190,9 @@ class MainWindow(QMainWindow):
         self.card_debleed = StudioModuleCard(
             title="ANTI-BLEED SPECTRAL (AIGUS / CYMBALES)",
             default_param="SOFT",
-            default_reason="Attenue les fuites residuelles de batterie dans la voix",
+            default_reason="Atténue les fuites résiduelles de batterie dans la voix",
         )
-        self.card_debleed.setFixedHeight(44)
+        self.card_debleed.setFixedHeight(64)
         bottom_strip.addWidget(self.card_debleed)
         diag_layout.addLayout(bottom_strip)
 
@@ -200,10 +200,10 @@ class MainWindow(QMainWindow):
 
         # ── (e) Hardware Settings Bar (Model / Format / Export) ──────────
         settings_row = QHBoxLayout()
-        settings_row.setSpacing(8)
+        settings_row.setSpacing(10)
 
         lbl_engine = QLabel("[ ENGINE ] :")
-        lbl_engine.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 700; color: #71717a;")
+        lbl_engine.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 800; font-size: 11px; color: #f1f5f9;")
         settings_row.addWidget(lbl_engine)
 
         self.model_combo = QComboBox()
@@ -213,7 +213,7 @@ class MainWindow(QMainWindow):
         settings_row.addWidget(self.model_combo, stretch=2)
 
         lbl_format = QLabel("[ FORMAT ] :")
-        lbl_format.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 700; color: #71717a;")
+        lbl_format.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 800; font-size: 11px; color: #f1f5f9;")
         settings_row.addWidget(lbl_format)
 
         self.format_combo = QComboBox()
@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
         # ── (f) Hero Action Section (Start button / Progress) ────────────
         actions = QHBoxLayout()
         actions.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        actions.setSpacing(12)
+        actions.setSpacing(14)
 
         self.start_btn = QPushButton("[ >> EXECUTER LA SEPARATION << ]")
         self.start_btn.setObjectName("StartButton")
@@ -282,12 +282,12 @@ class MainWindow(QMainWindow):
             card.setChecked(False)
 
         self.btn_preset_pure.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 6px 14px; "
-            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1px solid #ffffff;"
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 800; padding: 7px 16px; "
+            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1.5px solid #ffffff;"
         )
         self.btn_preset_studio.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; padding: 6px 14px; "
-            "background-color: #0d0d11; color: #71717a; border-radius: 0px; border: 1px solid #27272a;"
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 7px 16px; "
+            "background-color: #151824; color: #cbd5e1; border-radius: 0px; border: 1px solid #334155;"
         )
         self.diag_summary.setText(":: MODE BRUT ACTIF // ACAPELLA PURE DU RESEAU (ZERO DSP)")
 
@@ -298,12 +298,12 @@ class MainWindow(QMainWindow):
             self._update_diagnostic_ui(self._current_diagnostic)
 
         self.btn_preset_studio.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 6px 14px; "
-            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1px solid #ffffff;"
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 800; padding: 7px 16px; "
+            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1.5px solid #ffffff;"
         )
         self.btn_preset_pure.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; padding: 6px 14px; "
-            "background-color: #0d0d11; color: #71717a; border-radius: 0px; border: 1px solid #27272a;"
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 7px 16px; "
+            "background-color: #151824; color: #cbd5e1; border-radius: 0px; border: 1px solid #334155;"
         )
 
     # ── Diagnostic & Dynamic Adaptations ────────────────────────────────
@@ -511,12 +511,12 @@ class MainWindow(QMainWindow):
                 gpu_name = torch.cuda.get_device_name(0)
                 self.device_label.setText(f"[ SYS: CUDA // {gpu_name} ]")
                 self.device_label.setStyleSheet(
-                    "font-family: 'Consolas', monospace; color: #22c55e; border: 1px solid #14532d; background-color: #052e16;"
+                    "font-family: 'Consolas', monospace; color: #4ade80; border: 1px solid #166534; background-color: #0c2518; font-weight: 700;"
                 )
             else:
                 self.device_label.setText("[ SYS: CPU ]")
                 self.device_label.setStyleSheet(
-                    "font-family: 'Consolas', monospace; color: #a1a1aa; border: 1px solid #27272a; background-color: #0e0e11;"
+                    "font-family: 'Consolas', monospace; color: #cbd5e1; border: 1px solid #334155; background-color: #151824; font-weight: 700;"
                 )
         except Exception:
             self.device_label.setText("[ SYS: CPU ]")

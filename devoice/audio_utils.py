@@ -289,52 +289,52 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
     has_dynamic_imbalance = dynamic_spread_db >= 4.0 or is_heavy_compressed_mix
     if has_dynamic_imbalance:
         if is_heavy_compressed_mix:
-            leveler_reason = f"Prod très dense & chargée (RMS: {rms_dbfs:.1f} dBFS) · Stabilisation uniforme conseillée"
+            leveler_reason = f"Prod dense & chargée ({rms_dbfs:.1f} dBFS) · Gain vocal lissé"
         else:
-            leveler_reason = f"Écarts de dynamique détectés (±{dynamic_spread_db/2:.1f} dB) · Stabilisation uniforme conseillée"
+            leveler_reason = f"Écarts de dynamique (±{dynamic_spread_db/2:.1f} dB) · Niveaux stabilisés"
     else:
-        leveler_reason = f"Niveau homogène (±{dynamic_spread_db/2:.1f} dB) · Préservation de la dynamique naturelle"
+        leveler_reason = f"Niveau homogène (±{dynamic_spread_db/2:.1f} dB) · Dynamique naturelle"
 
     # ── Tailored Recommendation Logic ───────────────────────────────────
 
     # Rule 1: Adaptive Sub-Bass Filter
     has_subbass = sub_ratio >= 0.04 or adaptive_cutoff > 75.0
     if has_subbass:
-        subbass_reason = f"Calibré sur la fondamentale de l'artiste ({int(adaptive_cutoff)} Hz) · Nettoyage net"
+        subbass_reason = f"Calibré sur F0 vocal ({int(adaptive_cutoff)} Hz) · Coupe-bas net"
     else:
         subbass_reason = f"Basses propres ({sub_ratio*100:.1f}%) · Coupure douce à {int(adaptive_cutoff)} Hz"
 
     # Rule 2: Dynamic De-Esser
     has_harsh_sibilance = sibilance_ratio >= 0.22 or (sibilance_hz >= 6000 and sibilance_ratio >= 0.16)
     if has_harsh_sibilance:
-        sibilance_reason = f"Sifflantes agressives détectées à {sibilance_hz/1000:.1f} kHz · Adoucissement conseillé"
+        sibilance_reason = f"Sifflantes dures à {sibilance_hz/1000:.1f} kHz · Adoucissement spectral"
     else:
-        sibilance_reason = f"Aigus doux ({sibilance_hz/1000:.1f} kHz) · Inactif pour préserver l'air"
+        sibilance_reason = f"Aigus doux ({sibilance_hz/1000:.1f} kHz) · Préservation de l'air"
 
     # Rule 3: De-Reverb Studio (reserved for genuine heavy reverberation, opt-in)
     has_reverb = reverb_index >= 0.75
     if has_reverb:
-        reverb_reason = f"Réverbération importante détectée · Assèchement cabine conseillé"
+        reverb_reason = f"Réverbération détectée · Assèchement cabine conseillé"
     else:
-        reverb_reason = f"Prise directe / sèche (Index: {reverb_index:.2f}) · Timbre naturel préservé"
+        reverb_reason = f"Prise directe (Index: {reverb_index:.2f}) · Timbre naturel préservé"
 
     # Rule 4: Silence Purifier (Noise in pauses)
     has_noise = True  # Always beneficial for clean isolated acapellas
-    silence_reason = "Élimination des résidus d'instru et souffle dans les pauses vocales"
+    silence_reason = "Suppression du souffle et des résidus dans les pauses"
 
     # Rule 5: True-Peak Normalization (-1.0 dBFS)
     rec_tp = peak_dbfs >= -0.8
     if rec_tp:
-        tp_reason = f"Pic à {peak_dbfs:.1f} dBFS · Risque de saturation numérique en DAW"
+        tp_reason = f"Pic à {peak_dbfs:+.1f} dBFS · Marge de sécurité numérique"
     else:
-        tp_reason = f"Marge saine ({peak_dbfs:.1f} dBFS) · Non nécessaire"
+        tp_reason = f"Marge saine ({peak_dbfs:+.1f} dBFS) · Non nécessaire"
 
     # Rule 6: High frequency de-bleed
     rec_debleed = high_ratio >= 0.085
     if rec_debleed:
-        debleed_reason = f"Cymbales/percussions denses ({high_ratio*100:.1f}%) · Anti-fuite conseillé"
+        debleed_reason = f"Percussions denses ({high_ratio*100:.1f}%) · Anti-fuite d'aigus"
     else:
-        debleed_reason = f"Aigus équilibrés ({high_ratio*100:.1f}%) · Inactif pour préserver le timbre"
+        debleed_reason = f"Aigus équilibrés ({high_ratio*100:.1f}%) · Préservation du timbre"
 
     return AudioDiagnostic(
         path=path,
