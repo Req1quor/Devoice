@@ -8,6 +8,10 @@ from devoice.audio_utils import (
     AudioDiagnostic,
     AudioInfo,
     analyze_audio_track,
+    apply_dereverb_clean,
+    apply_dynamic_deesser,
+    apply_pitch_tracked_subbass_filter,
+    apply_silence_purifier,
     apply_subbass_filter,
     apply_true_peak_normalization,
     get_audio_info,
@@ -83,3 +87,54 @@ def test_analyze_audio_track(tmp_path: Path):
     assert diag.recommend_true_peak is True
     assert diag.recommend_subbass is True
     assert "Pic" in diag.true_peak_reason
+
+
+def test_apply_dynamic_deesser(tmp_path: Path):
+    """Verify dynamic de-esser processes signal and reduces harsh sibilants."""
+    sr = 44100
+    t = np.linspace(0, 1.0, sr, endpoint=False)
+    # 7 kHz harsh sibilance tone
+    signal = 0.8 * np.sin(2 * np.pi * 7000 * t)
+    wav_path = tmp_path / "deesser_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_dynamic_deesser(wav_path, sibilance_freq_hz=7000.0, max_reduction_db=6.0)
+    assert res.exists()
+    cleaned_data, _ = sf.read(str(res))
+    assert len(cleaned_data) == sr
+    # Attenuation should have reduced peak amplitude
+    assert np.max(np.abs(cleaned_data)) < 0.8
+
+
+def test_apply_dereverb_clean(tmp_path: Path):
+    """Verify dereverb module runs without error and preserves shape."""
+    sr = 44100
+    t = np.linspace(0, 0.5, int(sr * 0.5), endpoint=False)
+    signal = 0.5 * np.sin(2 * np.pi * 300 * t)
+    wav_path = tmp_path / "dereverb_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_dereverb_clean(wav_path, dry_ratio=0.3)
+    assert res.exists()
+    out_data, _ = sf.read(str(res))
+    assert len(out_data) == len(signal)
+
+
+def test_apply_silence_purifier(tmp_path: Path):
+    """Verify silence purifier attenuates quiet noise floor."""
+    sr = 44100
+    # 0.5s loud tone then 0.5s low noise (-50 dBFS)
+    t = np.linspace(0, 0.5, int(sr * 0.5), endpoint=False)
+    loud = 0.5 * np.sin(2 * np.pi * 400 * t)
+    quiet = 0.001 * np.sin(2 * np.pi * 400 * t)
+    signal = np.concatenate([loud, quiet])
+    wav_path = tmp_path / "silence_test.wav"
+    sf.write(str(wav_path), signal.astype(np.float32), sr)
+
+    res = apply_silence_purifier(wav_path, threshold_db=-40.0, max_attenuation_db=20.0)
+    assert res.exists()
+    cleaned_data, _ = sf.read(str(res))
+    # Quiet section after release settles should be attenuated significantly
+    quiet_out = cleaned_data[int(sr * 0.7) :]
+    assert np.max(np.abs(quiet_out)) < 0.0005
+

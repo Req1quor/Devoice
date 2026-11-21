@@ -38,8 +38,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Devoice")
-        self.setMinimumSize(700, 680)
-        self.resize(760, 720)
+        self.setMinimumSize(720, 720)
+        self.resize(780, 800)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
@@ -121,11 +121,11 @@ class MainWindow(QMainWindow):
         self.diag_card.setObjectName("DiagnosticCard")
         diag_layout = QVBoxLayout(self.diag_card)
         diag_layout.setContentsMargins(14, 12, 14, 12)
-        diag_layout.setSpacing(8)
+        diag_layout.setSpacing(6)
 
         # Diagnostic Headline
         diag_top = QHBoxLayout()
-        self.diag_title = QLabel("💡 DIAGNOSTIC INTELLIGENT")
+        self.diag_title = QLabel("💡 ANALYSE ACOUSTIQUE ADAPTATIVE")
         self.diag_title.setObjectName("DiagnosticTitle")
         diag_top.addWidget(self.diag_title)
 
@@ -136,36 +136,65 @@ class MainWindow(QMainWindow):
         diag_top.addWidget(self.diag_summary)
         diag_layout.addLayout(diag_top)
 
-        # 3 Adaptive Treatment Rows (Checkbox + Reason/Badge)
-        # 1. True Peak
-        row1 = QVBoxLayout()
-        row1.setSpacing(1)
-        self.cb_true_peak = QCheckBox("Normalisation True-Peak (-1.0 dBFS)")
-        self.lbl_true_peak_reason = QLabel("⚪ En attente de fichier…")
-        self.lbl_true_peak_reason.setObjectName("ReasonLabel")
-        row1.addWidget(self.cb_true_peak)
-        row1.addWidget(self.lbl_true_peak_reason)
-        diag_layout.addLayout(row1)
-
-        # 2. Sub-Bass
-        row2 = QVBoxLayout()
-        row2.setSpacing(1)
-        self.cb_subbass = QCheckBox("Coupe-bas Sub-Bass (65 Hz)")
-        self.lbl_subbass_reason = QLabel("⚪ En attente de fichier…")
+        # 1. Pitch-Tracked Sub-Bass
+        row_sub = QVBoxLayout()
+        row_sub.setSpacing(1)
+        self.cb_subbass = QCheckBox("Coupe-bas fréquentiel adaptatif (calé sur F0 vocal)")
+        self.lbl_subbass_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
         self.lbl_subbass_reason.setObjectName("ReasonLabel")
-        row2.addWidget(self.cb_subbass)
-        row2.addWidget(self.lbl_subbass_reason)
-        diag_layout.addLayout(row2)
+        row_sub.addWidget(self.cb_subbass)
+        row_sub.addWidget(self.lbl_subbass_reason)
+        diag_layout.addLayout(row_sub)
 
-        # 3. Spectral De-bleed
-        row3 = QVBoxLayout()
-        row3.setSpacing(1)
-        self.cb_debleed = QCheckBox("Dé-bleed spectral (Suppression des fuites d'aigus)")
-        self.lbl_debleed_reason = QLabel("⚪ En attente de fichier…")
+        # 2. Dynamic De-Esser
+        row_deess = QVBoxLayout()
+        row_deess.setSpacing(1)
+        self.cb_deesser = QCheckBox("De-Esser dynamique chirurgical (5 - 9 kHz)")
+        self.lbl_deesser_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_deesser_reason.setObjectName("ReasonLabel")
+        row_deess.addWidget(self.cb_deesser)
+        row_deess.addWidget(self.lbl_deesser_reason)
+        diag_layout.addLayout(row_deess)
+
+        # 3. De-Reverb Studio
+        row_rev = QVBoxLayout()
+        row_rev.setSpacing(1)
+        self.cb_dereverb = QCheckBox("De-Reverb Studio (Assèchement pièce / cabine)")
+        self.lbl_dereverb_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_dereverb_reason.setObjectName("ReasonLabel")
+        row_rev.addWidget(self.cb_dereverb)
+        row_rev.addWidget(self.lbl_dereverb_reason)
+        diag_layout.addLayout(row_rev)
+
+        # 4. Silence Purifier
+        row_sil = QVBoxLayout()
+        row_sil.setSpacing(1)
+        self.cb_silence = QCheckBox("Purificateur de silences (Smart Clean Gate)")
+        self.lbl_silence_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_silence_reason.setObjectName("ReasonLabel")
+        row_sil.addWidget(self.cb_silence)
+        row_sil.addWidget(self.lbl_silence_reason)
+        diag_layout.addLayout(row_sil)
+
+        # 5. True-Peak Normalization
+        row_tp = QVBoxLayout()
+        row_tp.setSpacing(1)
+        self.cb_true_peak = QCheckBox("Normalisation True-Peak (-1.0 dBFS)")
+        self.lbl_true_peak_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
+        self.lbl_true_peak_reason.setObjectName("ReasonLabel")
+        row_tp.addWidget(self.cb_true_peak)
+        row_tp.addWidget(self.lbl_true_peak_reason)
+        diag_layout.addLayout(row_tp)
+
+        # 6. Spectral De-bleed
+        row_deb = QVBoxLayout()
+        row_deb.setSpacing(1)
+        self.cb_debleed = QCheckBox("Dé-bleed spectral (Anti-fuite cymbales / aigus)")
+        self.lbl_debleed_reason = QLabel("⚪ Déposez un fichier pour adapter l'option")
         self.lbl_debleed_reason.setObjectName("ReasonLabel")
-        row3.addWidget(self.cb_debleed)
-        row3.addWidget(self.lbl_debleed_reason)
-        diag_layout.addLayout(row3)
+        row_deb.addWidget(self.cb_debleed)
+        row_deb.addWidget(self.lbl_debleed_reason)
+        diag_layout.addLayout(row_deb)
 
         root.addWidget(self.diag_card)
 
@@ -207,43 +236,94 @@ class MainWindow(QMainWindow):
     def _reset_diagnostic_ui(self) -> None:
         """Reset the diagnostic card to waiting state."""
         self.diag_title.setText("💡 ANALYSE ACOUSTIQUE ADAPTATIVE")
-        self.diag_summary.setText("Déposez un morceau pour analyser son spectre")
-        self.cb_true_peak.setEnabled(False)
-        self.cb_subbass.setEnabled(False)
-        self.cb_debleed.setEnabled(False)
-        self.lbl_true_peak_reason.setText("⚪ Déposez un fichier pour adapter l'option")
-        self.lbl_subbass_reason.setText("⚪ Déposez un fichier pour adapter l'option")
-        self.lbl_debleed_reason.setText("⚪ Déposez un fichier pour adapter l'option")
+        self.diag_summary.setText("Déposez un morceau pour calibrer les traitements")
+        for cb in (
+            self.cb_subbass,
+            self.cb_deesser,
+            self.cb_dereverb,
+            self.cb_silence,
+            self.cb_true_peak,
+            self.cb_debleed,
+        ):
+            cb.setEnabled(False)
+            cb.setChecked(False)
+
+        for lbl in (
+            self.lbl_subbass_reason,
+            self.lbl_deesser_reason,
+            self.lbl_dereverb_reason,
+            self.lbl_silence_reason,
+            self.lbl_true_peak_reason,
+            self.lbl_debleed_reason,
+        ):
+            lbl.setText("⚪ Déposez un fichier pour adapter l'option")
+            lbl.setProperty("recommended", "false")
+            lbl.setStyle(lbl.style())
 
     def _update_diagnostic_ui(self, diag: AudioDiagnostic) -> None:
         """Dynamically populate checkboxes and explanatory tags based on track analysis."""
         self._current_diagnostic = diag
-        self.diag_title.setText(f"● ANALYSE : {diag.filename}")
-        self.diag_summary.setText(f"{diag.duration_display} · Pic: {diag.peak_dbfs:.1f} dBFS · Sub: {diag.sub_bass_ratio*100:.1f}%")
+        self.diag_title.setText(f"● ANALYSE ACOUSTIQUE : {diag.filename}")
+        f0_txt = f"F0 ~{int(diag.pitch_f0)} Hz" if diag.pitch_f0 > 0 else "F0 standard"
+        self.diag_summary.setText(f"{diag.duration_display} · {diag.voice_type} ({f0_txt}) · Pic: {diag.peak_dbfs:.1f} dBFS")
 
-        # 1. True-Peak Normalization
+        # 1. Pitch-Tracked Sub-Bass Filter
+        self.cb_subbass.setEnabled(True)
+        self.cb_subbass.setChecked(diag.has_subbass_rumble)
+        self.cb_subbass.setText(f"Coupe-bas fréquentiel adaptatif ({int(diag.adaptive_cutoff_hz)} Hz · {diag.voice_type})")
+        sub_icon = "🟢 Recommandé :" if diag.has_subbass_rumble else "⚪ Inactif conseillé :"
+        self.lbl_subbass_reason.setText(f"{sub_icon} {diag.subbass_reason}")
+        self.lbl_subbass_reason.setProperty("recommended", "true" if diag.has_subbass_rumble else "false")
+
+        # 2. Dynamic De-Esser
+        self.cb_deesser.setEnabled(True)
+        self.cb_deesser.setChecked(diag.has_harsh_sibilance)
+        self.cb_deesser.setText(f"De-Esser dynamique chirurgical ({diag.sibilance_hz/1000:.1f} kHz)")
+        sib_icon = "🟢 Recommandé :" if diag.has_harsh_sibilance else "⚪ Inactif conseillé :"
+        self.lbl_deesser_reason.setText(f"{sib_icon} {diag.sibilance_reason}")
+        self.lbl_deesser_reason.setProperty("recommended", "true" if diag.has_harsh_sibilance else "false")
+
+        # 3. De-Reverb Studio
+        self.cb_dereverb.setEnabled(True)
+        self.cb_dereverb.setChecked(diag.has_reverb)
+        self.cb_dereverb.setText("De-Reverb Studio (Assèchement pièce / cabine)")
+        rev_icon = "🟢 Recommandé :" if diag.has_reverb else "⚪ Inactif conseillé :"
+        self.lbl_dereverb_reason.setText(f"{rev_icon} {diag.reverb_reason}")
+        self.lbl_dereverb_reason.setProperty("recommended", "true" if diag.has_reverb else "false")
+
+        # 4. Silence Purifier
+        self.cb_silence.setEnabled(True)
+        self.cb_silence.setChecked(diag.has_noise_in_pauses)
+        self.cb_silence.setText("Purificateur de silences (Smart Clean Gate)")
+        sil_icon = "🟢 Recommandé :" if diag.has_noise_in_pauses else "⚪ Inactif conseillé :"
+        self.lbl_silence_reason.setText(f"{sil_icon} {diag.silence_reason}")
+        self.lbl_silence_reason.setProperty("recommended", "true" if diag.has_noise_in_pauses else "false")
+
+        # 5. True-Peak Normalization
         self.cb_true_peak.setEnabled(True)
         self.cb_true_peak.setChecked(diag.recommend_true_peak)
+        self.cb_true_peak.setText("Normalisation True-Peak (-1.0 dBFS)")
         tp_icon = "🟢 Recommandé :" if diag.recommend_true_peak else "⚪ Non nécessaire :"
         self.lbl_true_peak_reason.setText(f"{tp_icon} {diag.true_peak_reason}")
         self.lbl_true_peak_reason.setProperty("recommended", "true" if diag.recommend_true_peak else "false")
 
-        # 2. Sub-Bass Filter
-        self.cb_subbass.setEnabled(True)
-        self.cb_subbass.setChecked(diag.recommend_subbass)
-        sub_icon = "🟢 Recommandé :" if diag.recommend_subbass else "⚪ Inactif conseillé :"
-        self.lbl_subbass_reason.setText(f"{sub_icon} {diag.subbass_reason}")
-        self.lbl_subbass_reason.setProperty("recommended", "true" if diag.recommend_subbass else "false")
-
-        # 3. Spectral De-bleed
+        # 6. Spectral De-bleed
         self.cb_debleed.setEnabled(True)
         self.cb_debleed.setChecked(diag.recommend_debleed)
+        self.cb_debleed.setText("Dé-bleed spectral (Anti-fuite cymbales / aigus)")
         deb_icon = "🟢 Recommandé :" if diag.recommend_debleed else "⚪ Inactif conseillé :"
         self.lbl_debleed_reason.setText(f"{deb_icon} {diag.debleed_reason}")
         self.lbl_debleed_reason.setProperty("recommended", "true" if diag.recommend_debleed else "false")
 
         # Force stylesheet refresh on reasons
-        for lbl in (self.lbl_true_peak_reason, self.lbl_subbass_reason, self.lbl_debleed_reason):
+        for lbl in (
+            self.lbl_subbass_reason,
+            self.lbl_deesser_reason,
+            self.lbl_dereverb_reason,
+            self.lbl_silence_reason,
+            self.lbl_true_peak_reason,
+            self.lbl_debleed_reason,
+        ):
             lbl.setStyle(lbl.style())
 
     # ── Logic & Signal Slots ────────────────────────────────────────────
@@ -285,12 +365,20 @@ class MainWindow(QMainWindow):
 
         self._last_processed_file = self.pending_files[0]
 
+        cutoff_hz = self._current_diagnostic.adaptive_cutoff_hz if self._current_diagnostic else 65.0
+        sibilance_hz = self._current_diagnostic.sibilance_hz if self._current_diagnostic else 7200.0
+
         self.worker = SeparationWorker(
             files=list(self.pending_files),
             model_name=model_name,
             output_format=output_format,
             output_dir=self.output_dir,
             subbass_filter=self.cb_subbass.isChecked(),
+            subbass_cutoff=cutoff_hz,
+            deesser=self.cb_deesser.isChecked(),
+            deesser_freq=sibilance_hz,
+            dereverb=self.cb_dereverb.isChecked(),
+            silence_purifier=self.cb_silence.isChecked(),
             true_peak=self.cb_true_peak.isChecked(),
             spectral_debleed=self.cb_debleed.isChecked(),
         )

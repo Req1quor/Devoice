@@ -27,6 +27,11 @@ class SeparationJob:
     output_dir: Optional[Path] = None
     output_format: str = "WAV (16-bit)"
     subbass_filter: bool = True
+    subbass_cutoff: float = 65.0
+    deesser: bool = False
+    deesser_freq: float = 7200.0
+    dereverb: bool = False
+    silence_purifier: bool = True
     true_peak: bool = True
     spectral_debleed: bool = False
 
@@ -78,6 +83,11 @@ class SeparationWorker(QThread):
         output_format: str = "WAV (16-bit)",
         output_dir: Optional[Path | str] = None,
         subbass_filter: bool = True,
+        subbass_cutoff: float = 65.0,
+        deesser: bool = False,
+        deesser_freq: float = 7200.0,
+        dereverb: bool = False,
+        silence_purifier: bool = True,
         true_peak: bool = True,
         spectral_debleed: bool = False,
         parent: Optional[Any] = None,
@@ -87,6 +97,11 @@ class SeparationWorker(QThread):
         self._output_format = output_format
         self._output_dir = Path(output_dir) if output_dir else None
         self._subbass_filter = subbass_filter
+        self._subbass_cutoff = subbass_cutoff
+        self._deesser = deesser
+        self._deesser_freq = deesser_freq
+        self._dereverb = dereverb
+        self._silence_purifier = silence_purifier
         self._true_peak = true_peak
         self._spectral_debleed = spectral_debleed
         self._cancel_requested = False
@@ -100,6 +115,11 @@ class SeparationWorker(QThread):
                     output_dir=self._output_dir,
                     output_format=self._output_format,
                     subbass_filter=self._subbass_filter,
+                    subbass_cutoff=self._subbass_cutoff,
+                    deesser=self._deesser,
+                    deesser_freq=self._deesser_freq,
+                    dereverb=self._dereverb,
+                    silence_purifier=self._silence_purifier,
                     true_peak=self._true_peak,
                     spectral_debleed=self._spectral_debleed,
                 )
@@ -171,6 +191,11 @@ class SeparationWorker(QThread):
                 output_dir=out_dir,
                 output_format=job.output_format,
                 subbass_filter=job.subbass_filter,
+                subbass_cutoff=job.subbass_cutoff,
+                deesser=job.deesser,
+                deesser_freq=job.deesser_freq,
+                dereverb=job.dereverb,
+                silence_purifier=job.silence_purifier,
                 true_peak=job.true_peak,
                 spectral_debleed=job.spectral_debleed,
             )
