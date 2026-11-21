@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -25,9 +24,9 @@ class AudioPreviewPlayer(QWidget):
         super().__init__(parent)
         self.setVisible(False)
 
-        self._original_path: Optional[Path] = None
-        self._vocals_path: Optional[Path] = None
-        self._instru_path: Optional[Path] = None
+        self._original_path: Path | None = None
+        self._vocals_path: Path | None = None
+        self._instru_path: Path | None = None
         self._active_stem: str = "vocals"
 
         self._audio_output = QAudioOutput(self)
@@ -113,7 +112,7 @@ class AudioPreviewPlayer(QWidget):
         self,
         vocals_path: Path | str,
         instru_path: Path | str,
-        original_path: Optional[Path | str] = None,
+        original_path: Path | str | None = None,
     ) -> None:
         self._vocals_path = Path(vocals_path) if vocals_path else None
         self._instru_path = Path(instru_path) if instru_path else None
@@ -125,6 +124,21 @@ class AudioPreviewPlayer(QWidget):
         self._apply_stem_source(seek_to_zero=True)
         self.setVisible(True)
 
+    def update_vocals(self, new_vocals_path: Path | str) -> None:
+        """Seamlessly reload media source via setSource, preserving current position and playback state."""
+        self._vocals_path = Path(new_vocals_path)
+        if self._active_stem == "vocals" and self._vocals_path.exists():
+            was_playing = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+            current_pos = self._player.position()
+
+            self._player.setSource(QUrl.fromLocalFile(str(self._vocals_path)))
+            if current_pos > 0:
+                self._player.setPosition(current_pos)
+
+            if was_playing:
+                self._player.play()
+                self._btn_play.setText("Pause")
+
     def _switch_stem(self, target_stem: str) -> None:
         if target_stem == self._active_stem:
             return
@@ -133,7 +147,7 @@ class AudioPreviewPlayer(QWidget):
         self._apply_stem_source(seek_to_zero=False)
 
     def _apply_stem_source(self, seek_to_zero: bool = False) -> None:
-        target_path: Optional[Path] = None
+        target_path: Path | None = None
         if self._active_stem == "original":
             target_path = self._original_path
             title = "LECTURE : MIX ORIGINAL"

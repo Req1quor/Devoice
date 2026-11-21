@@ -8,20 +8,18 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
+import soundfile as sf
 import static_ffmpeg
 import torch
 
 from devoice.audio_utils import (
-    apply_dereverb_clean,
-    apply_dynamic_deesser,
-    apply_pitch_tracked_subbass_filter,
-    apply_silence_purifier,
-    apply_spectral_debleed,
+    DSPRackConfig,
     apply_true_peak_normalization,
-    apply_vocal_leveler,
+    process_dsp_rack,
+    write_audio_file,
 )
 from devoice.model_manager import ModelManager
 
@@ -40,7 +38,7 @@ class SeparationEngine:
     def __init__(
         self,
         model_name: str = "bs_roformer",
-        output_dir: Optional[Path | str] = None,
+        output_dir: Path | str | None = None,
         output_format: str = "WAV",
         subbass_filter: bool = True,
         subbass_cutoff: float = 65.0,
@@ -140,7 +138,7 @@ class SeparationEngine:
     def separate(
         self,
         audio_path: Path | str,
-        progress_callback: Optional[Callable[[float, str], None]] = None,
+        progress_callback: Callable[[float, str], None] | None = None,
     ) -> dict[str, Path]:
         """Separate audio into isolated vocals and instrumental tracks with studio post-processing."""
         audio_path = Path(audio_path)
@@ -235,77 +233,89 @@ class SeparationEngine:
             results["instrumental"] = self.output_dir / output_files[1]
             results["instru"] = results["instrumental"]
 
-        # ── Tailored Studio DSP Chain (Non-destructive) ─────────────────
+        # ── Raw Stems Retention & Caching ───────────────────────────────
         vocals_path = results.get("vocals")
         instru_path = results.get("instrumental")
 
+        raw_vocals_path: Path | None = None
+        raw_instru_path: Path | None = None
+
         if vocals_path and vocals_path.is_file():
-            # 1. Silence Purifier / Clean Gate
-            if self.silence_purifier:
-                if progress_callback:
-                    progress_callback(0.88, "Nettoyage du souffle…")
-                try:
-                    apply_silence_purifier(vocals_path)
-                except Exception as exc:
-                    logger.warning("Could not apply silence purifier: %s", exc)
+            raw_vocals_path = vocals_path.parent / f"{vocals_path.stem}_raw{vocals_path.suffix}"
+            shutil.copy2(str(vocals_path), str(raw_vocals_path))
+            results["raw_vocals"] = raw_vocals_path
 
-            # 2. Pitch-tracked Sub-Bass cutoff tailored to singer
-            if self.subbass_filter:
-                if progress_callback:
-                    progress_callback(0.90, "Filtre coupe-bas…")
-                try:
-                    apply_pitch_tracked_subbass_filter(vocals_path, cutoff_hz=self.subbass_cutoff)
-                except Exception as exc:
-                    logger.warning("Could not apply sub-bass filter: %s", exc)
+        if instru_path and instru_path.is_file():
+            raw_instru_path = instru_path.parent / f"{instru_path.stem}_raw{instru_path.suffix}"
+            shutil.copy2(str(instru_path), str(raw_instru_path))
+            results["raw_instrumental"] = raw_instru_path
+            results["raw_instru"] = raw_instru_path
 
-            # 3. De-Reverb Studio
-            if self.dereverb:
-                if progress_callback:
-                    progress_callback(0.92, "Réduction de réverbération…")
-                try:
-                    apply_dereverb_clean(vocals_path)
-                except Exception as exc:
-                    logger.warning("Could not apply de-reverb: %s", exc)
+        # ── Tailored Studio DSP Chain (In-Memory from Raw Stem) ─────────
+        if raw_vocals_path and raw_vocals_path.is_file():
+            if progress_callback:
+                progress_callback(0.92, "Application du DSP studio…")
+            rack_config = DSPRackConfig(
+                enabled=True,
+                silence_purifier=self.silence_purifier,
+                subbass_filter=self.subbass_filter,
+                subbass_cutoff=self.subbass_cutoff,
+                dereverb=self.dereverb,
+                deesser=self.deesser,
+                deesser_freq=self.deesser_freq,
+                vocal_leveler=self.vocal_leveler,
+                spectral_debleed=self.spectral_debleed,
+                true_peak=self.true_peak,
+            )
+            try:
+                self.reprocess_stem(
+                    raw_vocals_path=raw_vocals_path,
+                    output_path=vocals_path,
+                    config=rack_config,
+                    instru_path=raw_instru_path or instru_path,
+                )
+            except Exception as exc:
+                logger.warning("Could not execute DSP rack during initial separation: %s", exc)
 
-            # 4. Dynamic De-Esser
-            if self.deesser:
-                if progress_callback:
-                    progress_callback(0.93, "Atténuation des sifflements…")
-                try:
-                    apply_dynamic_deesser(vocals_path, sibilance_freq_hz=self.deesser_freq)
-                except Exception as exc:
-                    logger.warning("Could not apply dynamic de-esser: %s", exc)
-
-            # 5. Vocal Rider / Dynamic Leveler
-            if self.vocal_leveler:
-                if progress_callback:
-                    progress_callback(0.95, "Égalisation du volume…")
-                try:
-                    apply_vocal_leveler(vocals_path, max_boost_db=4.5, max_cut_db=4.5)
-                except Exception as exc:
-                    logger.warning("Could not apply vocal leveler: %s", exc)
-
-            # 6. Spectral De-bleed
-            if self.spectral_debleed and instru_path and instru_path.is_file():
-                if progress_callback:
-                    progress_callback(0.97, "Réduction des fuites…")
-                try:
-                    apply_spectral_debleed(vocals_path, instru_path, reduction_db=2.5)
-                except Exception as exc:
-                    logger.warning("Could not apply spectral de-bleed: %s", exc)
-
-            # 7. True-Peak Normalization (-1.0 dBFS)
-            if self.true_peak:
-                if progress_callback:
-                    progress_callback(0.99, "Ajustement du niveau de sortie…")
-                try:
-                    apply_true_peak_normalization(vocals_path, target_dbfs=-1.0)
-                    if instru_path:
-                        apply_true_peak_normalization(instru_path, target_dbfs=-1.0)
-                except Exception as exc:
-                    logger.warning("Could not apply True-Peak normalization: %s", exc)
+        if self.true_peak and instru_path and instru_path.is_file():
+            if progress_callback:
+                progress_callback(0.98, "Ajustement du niveau instrumental…")
+            try:
+                apply_true_peak_normalization(instru_path, target_dbfs=-1.0)
+            except Exception as exc:
+                logger.warning("Could not apply True-Peak normalization: %s", exc)
 
         if progress_callback:
             progress_callback(1.0, "Prêt !")
 
         return results
+
+    def reprocess_stem(
+        self,
+        raw_vocals_path: Path | str,
+        output_path: Path | str,
+        config: DSPRackConfig,
+        instru_path: Path | str | None = None,
+    ) -> Path:
+        """Execute DSP rack reprocessing on raw vocal stem without running neural inference."""
+        raw_v_path = Path(raw_vocals_path)
+        out_path = Path(output_path)
+        if raw_v_path.resolve() == out_path.resolve():
+            raise ValueError("output_path must not overwrite raw_vocals_path")
+        if not raw_v_path.is_file():
+            raise FileNotFoundError(f"Raw vocals file not found: {raw_v_path}")
+
+        vocals_data, sr = sf.read(str(raw_v_path), dtype="float32")
+
+        instru_data = None
+        if instru_path:
+            i_path = Path(instru_path)
+            if i_path.is_file():
+                try:
+                    instru_data, _ = sf.read(str(i_path), dtype="float32")
+                except Exception as exc:
+                    logger.warning("Could not load instrumental stem for debleed: %s", exc)
+
+        processed_data = process_dsp_rack(vocals_data, sr, config, instru=instru_data)
+        write_audio_file(out_path, processed_data, sr)
+        return out_path

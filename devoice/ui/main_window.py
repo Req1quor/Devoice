@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
@@ -26,11 +26,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from devoice.audio_utils import AudioDiagnostic, analyze_audio_track
-from devoice.engine import ModelManager
+from devoice.audio_utils import AudioDiagnostic, DSPRackConfig, analyze_audio_track
+from devoice.engine import ModelManager, SeparationEngine
 from devoice.ui.audio_player import AudioPreviewPlayer
 from devoice.ui.drop_zone import DropZone
-from devoice.worker import SeparationWorker, YouTubeDownloadWorker
+from devoice.worker import ReprocessWorker, SeparationWorker, YouTubeDownloadWorker
 from devoice.youtube import extract_youtube_url, is_youtube_url
 
 logger = logging.getLogger(__name__)
@@ -51,12 +51,23 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(660, 620)
         self.resize(680, 640)
 
-        self.pending_files: List[Path] = []
+        self.pending_files: list[Path] = []
         self.output_dir: Path | None = None
         self.worker: SeparationWorker | None = None
-        self.yt_worker: Optional[YouTubeDownloadWorker] = None
+        self.yt_worker: YouTubeDownloadWorker | None = None
         self._last_processed_file: Path | None = None
-        self._current_diagnostic: Optional[AudioDiagnostic] = None
+        self._current_diagnostic: AudioDiagnostic | None = None
+
+        # Post-Separation DSP Reprocessing state
+        self._current_raw_vocals_path: Path | None = None
+        self._current_raw_instru_path: Path | None = None
+        self._current_processed_vocals_path: Path | None = None
+        self._reprocess_worker: ReprocessWorker | None = None
+        self._ping_pong_flag: bool = False
+
+        self._reprocess_timer = QTimer(self)
+        self._reprocess_timer.setSingleShot(True)
+        self._reprocess_timer.timeout.connect(self._trigger_reprocess)
 
         self._build_ui()
         self._update_device_label()
@@ -154,6 +165,7 @@ class MainWindow(QMainWindow):
         self.chk_auto_dsp = QCheckBox("Post-traitement audio (égalisation et réduction du souffle)")
         self.chk_auto_dsp.setChecked(True)
         self.chk_auto_dsp.toggled.connect(self._on_auto_dsp_toggled)
+        self.chk_auto_dsp.toggled.connect(self._on_dsp_parameter_changed)
         auto_row.addWidget(self.chk_auto_dsp, stretch=1, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_toggle_advanced = QPushButton("Options ▾")
@@ -189,6 +201,17 @@ class MainWindow(QMainWindow):
         drawer_layout.addWidget(self.chk_deesser, 2, 0)
         drawer_layout.addWidget(self.chk_dereverb, 2, 1)
         drawer_layout.addWidget(self.chk_debleed, 3, 0, 1, 2)
+
+        for chk in (
+            self.chk_subbass,
+            self.chk_deesser,
+            self.chk_dereverb,
+            self.chk_silence,
+            self.chk_leveler,
+            self.chk_true_peak,
+            self.chk_debleed,
+        ):
+            chk.toggled.connect(self._on_dsp_parameter_changed)
 
         card_layout.addWidget(self.drawer_widget)
 
@@ -253,6 +276,79 @@ class MainWindow(QMainWindow):
         self.chk_dereverb.setChecked(diag.has_reverb)
         self.chk_true_peak.setChecked(diag.recommend_true_peak)
         self.chk_debleed.setChecked(diag.recommend_debleed)
+
+    def _on_dsp_parameter_changed(self) -> None:
+        """Slot invoked when any DSP checkbox parameter is toggled."""
+        if self._current_raw_vocals_path and self._current_raw_vocals_path.exists():
+            self.status_label.setText("Actualisation DSP…")
+            self._reprocess_timer.start(120)
+
+    def _trigger_reprocess(self) -> None:
+        """Debounced trigger launching ReprocessWorker on the retained raw vocal stem."""
+        if not (self._current_raw_vocals_path and self._current_raw_vocals_path.exists()):
+            return
+
+        if self._reprocess_worker is not None and self._reprocess_worker.isRunning():
+            self._reprocess_worker.cancel()
+            self._reprocess_worker.wait(300)
+
+        use_dsp = self.chk_auto_dsp.isChecked()
+        cutoff_hz = self._current_diagnostic.adaptive_cutoff_hz if self._current_diagnostic else 65.0
+        sibilance_hz = self._current_diagnostic.sibilance_hz if self._current_diagnostic else 7200.0
+
+        config = DSPRackConfig(
+            enabled=use_dsp,
+            silence_purifier=use_dsp and self.chk_silence.isChecked(),
+            subbass_filter=use_dsp and self.chk_subbass.isChecked(),
+            subbass_cutoff=cutoff_hz,
+            dereverb=use_dsp and self.chk_dereverb.isChecked(),
+            deesser=use_dsp and self.chk_deesser.isChecked(),
+            deesser_freq=sibilance_hz,
+            vocal_leveler=use_dsp and self.chk_leveler.isChecked(),
+            true_peak=use_dsp and self.chk_true_peak.isChecked(),
+            spectral_debleed=use_dsp and self.chk_debleed.isChecked(),
+        )
+
+        # Alternating ping-pong output file paths to prevent Windows QMediaPlayer [WinError 32]
+        self._ping_pong_flag = not self._ping_pong_flag
+        tag = "_vocals_v2.wav" if self._ping_pong_flag else "_vocals_v1.wav"
+
+        raw_stem_name = self._current_raw_vocals_path.stem
+        if raw_stem_name.endswith("_raw"):
+            clean_base = raw_stem_name[:-4]
+        else:
+            clean_base = raw_stem_name
+
+        output_path = self._current_raw_vocals_path.parent / f"{clean_base}{tag}"
+
+        engine = SeparationEngine(
+            model_name=self.model_combo.currentData() or "bs_roformer",
+            output_dir=self._current_raw_vocals_path.parent,
+            output_format="WAV",
+        )
+
+        self._reprocess_worker = ReprocessWorker(
+            engine=engine,
+            raw_vocals_path=self._current_raw_vocals_path,
+            output_path=output_path,
+            config=config,
+            instru_path=self._current_raw_instru_path,
+            parent=self,
+        )
+        self._reprocess_worker.reprocess_finished.connect(self._on_reprocess_finished)
+        self._reprocess_worker.reprocess_error.connect(self._on_reprocess_error)
+        self._reprocess_worker.start()
+
+    def _on_reprocess_finished(self, new_vocals_path: Path) -> None:
+        """Handle background reprocess completion: update player and status."""
+        self._current_processed_vocals_path = new_vocals_path
+        self.audio_player.update_vocals(new_vocals_path)
+        self.status_label.setText("Traitement DSP mis à jour")
+
+    def _on_reprocess_error(self, error_message: str) -> None:
+        """Handle background reprocess failure."""
+        logger.warning("Reprocessing failed: %s", error_message)
+        self.status_label.setText(f"Erreur DSP : {error_message}")
 
     # ── Logic & Signal Slots ────────────────────────────────────────────
 
@@ -423,10 +519,25 @@ class MainWindow(QMainWindow):
         self.progress_bar.setValue(pct)
         self.status_label.setText(msg)
 
-    def _on_file_completed(self, filename: str, results: Dict[str, Any]) -> None:
+    def _on_file_completed(self, filename: str, results: dict[str, Any]) -> None:
         self.status_label.setText(f"{filename} terminé")
         vocals_path = Path(results.get("vocals", ""))
         instru_path = Path(results.get("instru", "") or results.get("instrumental", ""))
+
+        raw_v = results.get("raw_vocals")
+        if raw_v:
+            self._current_raw_vocals_path = Path(raw_v)
+        elif vocals_path.exists():
+            self._current_raw_vocals_path = vocals_path
+
+        raw_i = results.get("raw_instrumental") or results.get("raw_instru")
+        if raw_i:
+            self._current_raw_instru_path = Path(raw_i)
+        elif instru_path.exists():
+            self._current_raw_instru_path = instru_path
+
+        if vocals_path.exists():
+            self._current_processed_vocals_path = vocals_path
 
         if vocals_path.exists() and instru_path.exists():
             self.audio_player.set_results(

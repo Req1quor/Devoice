@@ -1,16 +1,17 @@
 """Unit tests for audio utilities (info, normalisation, pro filters, acoustic diagnostic)."""
 
 from pathlib import Path
+
 import numpy as np
 import pytest
 import soundfile as sf
+
 from devoice.audio_utils import (
     AudioDiagnostic,
     AudioInfo,
     analyze_audio_track,
     apply_dereverb_clean,
     apply_dynamic_deesser,
-    apply_pitch_tracked_subbass_filter,
     apply_silence_purifier,
     apply_subbass_filter,
     apply_true_peak_normalization,

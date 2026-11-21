@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QFileDialog, QFrame, QLabel, QVBoxLayout, QWidget
@@ -118,7 +117,7 @@ class DropZone(QFrame):
                 return
 
         # 2. Check for local audio files
-        audio_paths: List[Path] = []
+        audio_paths: list[Path] = []
         for url in urls:
             path = Path(url.toLocalFile())
             if path.suffix.lower() in SUPPORTED_FORMATS:

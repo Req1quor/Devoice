@@ -8,7 +8,6 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import soundfile as sf
@@ -314,7 +313,7 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
     # Rule 3: De-Reverb Studio (reserved for genuine heavy reverberation, opt-in)
     has_reverb = reverb_index >= 0.75
     if has_reverb:
-        reverb_reason = f"Réverbération détectée · Assèchement cabine conseillé"
+        reverb_reason = "Réverbération détectée · Assèchement cabine conseillé"
     else:
         reverb_reason = f"Prise directe (Index: {reverb_index:.2f}) · Timbre naturel préservé"
 
@@ -373,57 +372,128 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
 # ── Studio Post-Processing DSP Modules ──────────────────────────────────────
 
 
-def apply_pitch_tracked_subbass_filter(audio_path: Path | str, cutoff_hz: float = 65.0) -> Path:
-    """Apply high-pass Butterworth filter tailored to the singer's fundamental pitch."""
-    path = Path(audio_path)
-    data, sr = sf.read(str(path), dtype="float32")
+@dataclass
+class DSPRackConfig:
+    """Configuration for Studio DSP Rack post-processing modules."""
+
+    enabled: bool = True
+    silence_purifier: bool = True
+    subbass_filter: bool = True
+    subbass_cutoff: float = 65.0
+    dereverb: bool = False
+    deesser: bool = False
+    deesser_freq: float = 7200.0
+    vocal_leveler: bool = True
+    spectral_debleed: bool = False
+    true_peak: bool = True
+
+
+def write_audio_file(path: Path | str, data: np.ndarray, sr: int) -> Path:
+    """Safely write audio data to disk handling WAV, FLAC, and MP3 without subtype errors."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ext = path.suffix.lower()
+
+    if ext == ".mp3":
+        try:
+            sf.write(str(path), data, sr, format="MP3")
+        except Exception:
+            temp_wav = path.with_suffix(".tmp.wav")
+            sf.write(str(temp_wav), data, sr, subtype="FLOAT")
+            convert_audio(temp_wav, path, bitrate="320k")
+            if temp_wav.exists():
+                try:
+                    temp_wav.unlink()
+                except Exception:
+                    pass
+    elif ext == ".flac":
+        clipped = np.clip(data, -1.0, 1.0)
+        sf.write(str(path), clipped, sr, format="FLAC", subtype="PCM_24")
+    else:
+        # Default WAV / other
+        subtype = "FLOAT"
+        if path.exists():
+            try:
+                info = sf.info(str(path))
+                if "16" in info.subtype:
+                    subtype = "PCM_16"
+                elif "24" in info.subtype:
+                    subtype = "PCM_24"
+                elif "FLOAT" in info.subtype:
+                    subtype = "FLOAT"
+            except Exception:
+                pass
+        if subtype in ("PCM_16", "PCM_24"):
+            clipped = np.clip(data, -1.0, 1.0)
+            sf.write(str(path), clipped, sr, subtype=subtype)
+        else:
+            sf.write(str(path), data, sr, subtype="FLOAT")
+    return path
+
+
+def process_subbass_filter(audio: np.ndarray, sr: int, cutoff_hz: float = 65.0) -> np.ndarray:
+    """High-pass Butterworth filter tailored to the singer's pitch in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
 
     nyquist = 0.5 * sr
     norm_cutoff = min(0.99, max(0.001, cutoff_hz / nyquist))
     sos = butter(2, norm_cutoff, btype="highpass", output="sos")
 
-    if data.ndim == 1:
-        filtered = sosfilt(sos, data)
+    if audio.ndim == 1:
+        filtered = sosfilt(sos, audio).astype(np.float32)
     else:
-        filtered = np.zeros_like(data)
-        for ch in range(data.shape[1]):
-            filtered[:, ch] = sosfilt(sos, data[:, ch])
-
-    sf.write(str(path), filtered, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied pitch-tracked sub-bass filter (%.1f Hz) on %s", cutoff_hz, path.name)
-    return path
+        filtered = np.zeros_like(audio, dtype=np.float32)
+        for ch in range(audio.shape[1]):
+            filtered[:, ch] = sosfilt(sos, audio[:, ch])
+    return filtered
 
 
-def apply_dynamic_deesser(
-    audio_path: Path | str,
+def process_dynamic_deesser(
+    audio: np.ndarray,
+    sr: int,
     sibilance_freq_hz: float = 7200.0,
     max_reduction_db: float = 4.0,
-) -> Path:
-    """Dynamic De-Esser: surgically attenuates harsh sibilants without dulling the vocal."""
-    path = Path(audio_path)
-    data, sr = sf.read(str(path), dtype="float32")
+) -> np.ndarray:
+    """Dynamic De-Esser: surgically attenuates harsh sibilants in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
 
     nyquist = 0.5 * sr
     bandwidth_hz = 1800.0
-    low = max(0.001, (sibilance_freq_hz - bandwidth_hz / 2) / nyquist)
-    high = min(0.99, (sibilance_freq_hz + bandwidth_hz / 2) / nyquist)
+    low_hz = max(100.0, sibilance_freq_hz - bandwidth_hz / 2)
+    high_hz = sibilance_freq_hz + bandwidth_hz / 2
 
-    sos_band = butter(2, [low, high], btype="bandpass", output="sos")
+    if (
+        sibilance_freq_hz >= nyquist
+        or low_hz >= nyquist
+        or high_hz >= nyquist
+        or (low_hz / nyquist) >= 0.99
+    ):
+        return np.copy(audio).astype(np.float32)
 
-    if data.ndim == 1:
-        channels_data = [data]
+    low = max(0.001, low_hz / nyquist)
+    high = min(0.99, high_hz / nyquist)
+
+    if low >= high:
+        return np.copy(audio).astype(np.float32)
+
+    try:
+        sos_band = butter(2, [low, high], btype="bandpass", output="sos")
+    except ValueError:
+        return np.copy(audio).astype(np.float32)
+
+    if audio.ndim == 1:
+        channels_data = [audio]
     else:
-        channels_data = [data[:, ch] for ch in range(data.shape[1])]
+        channels_data = [audio[:, ch] for ch in range(audio.shape[1])]
 
     out_channels = []
     reduction_factor = math.pow(10.0, -abs(max_reduction_db) / 20.0)
 
     for ch_signal in channels_data:
-        # Extract sibilance band
         sib_band = sosfilt(sos_band, ch_signal)
-        # Compute dynamic envelope
         env = np.abs(sib_band)
-        # Smooth envelope (fast attack 2ms, release 30ms)
         attack_alpha = math.exp(-1.0 / (0.002 * sr))
         release_alpha = math.exp(-1.0 / (0.030 * sr))
 
@@ -437,40 +507,40 @@ def apply_dynamic_deesser(
                 curr = release_alpha * curr + (1 - release_alpha) * val
             smooth_env[i] = curr
 
-        # Threshold: top 5% peak sibilance triggers gain attenuation
         thresh = np.percentile(smooth_env, 95) * 0.7 if len(smooth_env) > 0 else 0.1
         gain_curve = np.ones_like(ch_signal)
         mask = smooth_env > thresh
         if np.any(mask):
-            over = (smooth_env[mask] - thresh) / (np.max(smooth_env) - thresh + 1e-6)
+            denom = np.max(smooth_env) - thresh + 1e-6
+            over = (smooth_env[mask] - thresh) / denom
             gain_curve[mask] = 1.0 - (1.0 - reduction_factor) * np.clip(over, 0.0, 1.0)
 
-        # Attenuate only the sibilant band portion from the channel
         cleaned = ch_signal - sib_band * (1.0 - gain_curve)
         out_channels.append(cleaned)
 
-    final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
-    sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied dynamic de-esser (%.1f kHz) on %s", sibilance_freq_hz / 1000.0, path.name)
-    return path
+    if len(out_channels) > 1:
+        return np.column_stack(out_channels).astype(np.float32)
+    if audio.ndim == 2:
+        return out_channels[0][:, None].astype(np.float32)
+    return out_channels[0].astype(np.float32)
 
 
-def apply_dereverb_clean(
-    audio_path: Path | str,
+def process_dereverb_clean(
+    audio: np.ndarray,
+    sr: int,
     max_decay_reduction_db: float = 4.0,
-    dry_ratio: Optional[float] = None,
-) -> Path:
-    """De-Reverb module: preserves steady vocal vowels and direct attacks while suppressing lingering decay tails."""
-    path = Path(audio_path)
-    data, sr = sf.read(str(path), dtype="float32")
+    dry_ratio: float | None = None,
+) -> np.ndarray:
+    """De-Reverb module: suppresses lingering decay tails in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
 
-    if data.ndim == 1:
-        channels_data = [data]
+    if audio.ndim == 1:
+        channels_data = [audio]
     else:
-        channels_data = [data[:, ch] for ch in range(data.shape[1])]
+        channels_data = [audio[:, ch] for ch in range(audio.shape[1])]
 
     out_channels = []
-    # Fast envelope (10ms) vs slow envelope (180ms)
     fast_a = math.exp(-1.0 / (0.010 * sr))
     slow_a = math.exp(-1.0 / (0.180 * sr))
     if dry_ratio is not None:
@@ -490,8 +560,6 @@ def apply_dereverb_clean(
             fast_env[i] = f_val
             slow_env[i] = s_val
 
-        # When fast_env >= 0.7 * slow_env: singing is active/sustained -> gain = 1.0 (zero reduction)
-        # When fast_env < 0.7 * slow_env: signal has stopped, decay tail remains -> smoothly attenuate
         ratio = fast_env / (slow_env + 1e-6)
         gain = np.ones_like(ratio)
         tail_mask = ratio < 0.7
@@ -500,31 +568,32 @@ def apply_dereverb_clean(
         cleaned = ch_signal * gain
         out_channels.append(cleaned)
 
-    final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
-    sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied De-Reverb studio module on %s", path.name)
-    return path
+    if len(out_channels) > 1:
+        return np.column_stack(out_channels).astype(np.float32)
+    if audio.ndim == 2:
+        return out_channels[0][:, None].astype(np.float32)
+    return out_channels[0].astype(np.float32)
 
 
-def apply_silence_purifier(
-    audio_path: Path | str,
+def process_silence_purifier(
+    audio: np.ndarray,
+    sr: int,
     threshold_db: float = -46.0,
     max_attenuation_db: float = 18.0,
-) -> Path:
-    """Silence purifier / Soft-Knee Downward Expander: cleans ghost bleed & noise in pauses without chopping phrase endings."""
-    path = Path(audio_path)
-    data, sr = sf.read(str(path), dtype="float32")
+) -> np.ndarray:
+    """Silence purifier / Soft-Knee Downward Expander in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
 
     thresh_linear = math.pow(10.0, threshold_db / 20.0)
     att_linear = math.pow(10.0, -abs(max_attenuation_db) / 20.0)
 
-    if data.ndim == 1:
-        channels_data = [data]
+    if audio.ndim == 1:
+        channels_data = [audio]
     else:
-        channels_data = [data[:, ch] for ch in range(data.shape[1])]
+        channels_data = [audio[:, ch] for ch in range(audio.shape[1])]
 
     out_channels = []
-    # Musical attack (20ms) and release (120ms) for transparent gating
     att_a = math.exp(-1.0 / (0.020 * sr))
     rel_a = math.exp(-1.0 / (0.120 * sr))
 
@@ -538,7 +607,6 @@ def apply_silence_purifier(
             if val >= thresh_linear:
                 target_gain = 1.0
             else:
-                # Soft-knee proportional expansion: smooth transition into quiet
                 target_gain = max(att_linear, min(1.0, val / thresh_linear))
 
             if target_gain > curr_gain:
@@ -550,40 +618,37 @@ def apply_silence_purifier(
         cleaned = ch_signal * gain_envelope
         out_channels.append(cleaned)
 
-    final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
-    sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied Silence Purifier / Anti-Ghosting on %s", path.name)
-    return path
+    if len(out_channels) > 1:
+        return np.column_stack(out_channels).astype(np.float32)
+    if audio.ndim == 2:
+        return out_channels[0][:, None].astype(np.float32)
+    return out_channels[0].astype(np.float32)
 
 
-def apply_vocal_leveler(
-    audio_path: Path | str,
-    target_rms_db: Optional[float] = None,
+def process_vocal_leveler(
+    audio: np.ndarray,
+    sr: int,
+    target_rms_db: float | None = None,
     max_boost_db: float = 4.5,
     max_cut_db: float = 4.5,
     leveling_strength: float = 0.75,
-) -> Path:
-    """Vocal Rider / Dynamic Leveler: stabilizes vocal volume fluctuations across the song.
+) -> np.ndarray:
+    """Vocal Rider / Dynamic Leveler in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
 
-    Ensures vocals remain at a stable target loudness across heavy choruses and sparse verses,
-    eliminating perceived volume dips and holes without audible pumping or noise amplification.
-    """
-    path = Path(audio_path)
-    data, sr = sf.read(str(path), dtype="float32")
-
-    is_mono = data.ndim == 1
+    is_mono = audio.ndim == 1
     if is_mono:
-        channels_data = [data]
-        mix_for_analysis = data
+        channels_data = [audio]
+        mix_for_analysis = audio
     else:
-        channels_data = [data[:, ch] for ch in range(data.shape[1])]
-        mix_for_analysis = np.mean(data, axis=1)
+        channels_data = [audio[:, ch] for ch in range(audio.shape[1])]
+        mix_for_analysis = np.mean(audio, axis=1)
 
     total_samples = len(mix_for_analysis)
     if total_samples < sr:
-        return path
+        return np.copy(audio).astype(np.float32)
 
-    # Sliding window RMS calculation (300ms window, 25ms hop)
     win_len = int(sr * 0.300)
     hop_len = int(sr * 0.025)
     num_hops = max(1, (total_samples - win_len) // hop_len)
@@ -594,14 +659,12 @@ def apply_vocal_leveler(
         frame = mix_for_analysis[start : start + win_len]
         frame_energies[k] = np.sqrt(np.mean(frame**2))
 
-    # Speech Activity Gating threshold (-46 dBFS)
     speech_threshold = 0.005
     active_mask = frame_energies >= speech_threshold
 
     if not np.any(active_mask):
-        return path
+        return np.copy(audio).astype(np.float32)
 
-    # If target_rms_db not specified, use median loudness of active vocal speech
     active_energies = frame_energies[active_mask]
     active_dbs = 20.0 * np.log10(np.clip(active_energies, 1e-6, 1.0))
     if target_rms_db is None:
@@ -609,18 +672,13 @@ def apply_vocal_leveler(
     else:
         target_db = target_rms_db
 
-    # Compute gain adjustment per frame (in dB)
     frame_gains_db = np.zeros(num_hops, dtype=np.float32)
-    # Active frames: calculate difference from target, scaled by leveling strength
     diff_db = (target_db - active_dbs) * leveling_strength
     frame_gains_db[active_mask] = np.clip(diff_db, -abs(max_cut_db), abs(max_boost_db))
-    # Pauses / silence: unity gain (0.0 dB) to prevent noise boosting
     frame_gains_db[~active_mask] = 0.0
 
-    # Convert to linear multiplier
     frame_gains_linear = np.power(10.0, frame_gains_db / 20.0)
 
-    # Interpolate to sample resolution
     hop_centers = np.arange(num_hops) * hop_len + win_len // 2
     sample_indices = np.arange(total_samples)
     interpolated_gain = np.interp(
@@ -631,8 +689,6 @@ def apply_vocal_leveler(
         right=frame_gains_linear[-1],
     )
 
-    # Smooth gain curve with analog ballistics:
-    # fast attack ~35ms (tames sudden bursts), musical release ~250ms (smooth natural recovery)
     att_alpha = math.exp(-1.0 / (0.035 * sr))
     rel_alpha = math.exp(-1.0 / (0.250 * sr))
 
@@ -640,18 +696,211 @@ def apply_vocal_leveler(
     curr = 1.0
     for i in range(total_samples):
         target = interpolated_gain[i]
-        if target < curr:  # Gain reduction (attenuating louder section)
+        if target < curr:
             curr = att_alpha * curr + (1.0 - att_alpha) * target
-        else:  # Gain boost (bringing up quiet section)
+        else:
             curr = rel_alpha * curr + (1.0 - rel_alpha) * target
         smooth_gain[i] = curr
 
-    # Apply smooth gain envelope to each audio channel
     out_channels = [ch * smooth_gain for ch in channels_data]
 
-    final_data = np.column_stack(out_channels) if len(out_channels) > 1 else out_channels[0]
-    sf.write(str(path), final_data, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied Vocal Rider / Gain Leveler (Target: %.1f dBFS) on %s", target_db, path.name)
+    if len(out_channels) > 1:
+        return np.column_stack(out_channels).astype(np.float32)
+    if audio.ndim == 2:
+        return out_channels[0][:, None].astype(np.float32)
+    return out_channels[0].astype(np.float32)
+
+
+def process_true_peak_normalization(
+    audio: np.ndarray,
+    target_dbfs: float = -1.0,
+    allow_boost: bool = False,
+) -> np.ndarray:
+    """True-Peak safety ceiling in pure memory."""
+    if len(audio) == 0:
+        return np.copy(audio).astype(np.float32)
+
+    peak = float(np.max(np.abs(audio)))
+    if peak <= 1e-6:
+        return np.copy(audio).astype(np.float32)
+
+    target_linear = math.pow(10.0, target_dbfs / 20.0)
+    if peak > target_linear or allow_boost:
+        gain = target_linear / peak
+        return (audio * gain).astype(np.float32)
+    return np.copy(audio).astype(np.float32)
+
+
+def process_spectral_debleed(
+    vocals: np.ndarray,
+    instru: np.ndarray,
+    sr: int = 44100,
+    reduction_db: float = 2.0,
+) -> np.ndarray:
+    """Attenuate residual instrumental bleed during vocal silence regions in pure memory."""
+    min_len = min(len(vocals), len(instru))
+    frame_size = 2048
+    hop_size = 512
+    num_frames = (min_len - frame_size) // hop_size
+
+    if num_frames <= 0 or len(vocals) == 0:
+        return np.copy(vocals).astype(np.float32)
+
+    v_mono = np.mean(vocals[:min_len], axis=1) if vocals.ndim > 1 else vocals[:min_len]
+    i_mono = np.mean(instru[:min_len], axis=1) if instru.ndim > 1 else instru[:min_len]
+
+    attenuation_factor = math.pow(10.0, -abs(reduction_db) / 20.0)
+    window = np.hanning(frame_size).astype(np.float32)
+    gain_accum = np.zeros(len(vocals), dtype=np.float32)
+    norm_accum = np.zeros(len(vocals), dtype=np.float32)
+
+    for i in range(0, min_len - frame_size, hop_size):
+        v_frame = v_mono[i : i + frame_size]
+        i_frame = i_mono[i : i + frame_size]
+
+        v_energy = float(np.mean(v_frame**2))
+        i_energy = float(np.mean(i_frame**2))
+
+        if v_energy < 1e-4 and i_energy > 5e-3:
+            frame_gain = attenuation_factor
+        else:
+            frame_gain = 1.0
+
+        gain_accum[i : i + frame_size] += frame_gain * window
+        norm_accum[i : i + frame_size] += window
+
+    gain = np.ones(len(vocals), dtype=np.float32)
+    valid_mask = norm_accum > 1e-4
+    gain[valid_mask] = gain_accum[valid_mask] / norm_accum[valid_mask]
+
+    if vocals.ndim == 2:
+        return (vocals * gain[:, None]).astype(np.float32)
+    return (vocals * gain).astype(np.float32)
+
+
+def process_dsp_rack(
+    vocals: np.ndarray,
+    sr: int,
+    config: DSPRackConfig,
+    instru: np.ndarray | None = None,
+) -> np.ndarray:
+    """Execute complete studio DSP rack on audio array in pure memory without disk I/O."""
+    data = vocals.copy().astype(np.float32)
+
+    if not config.enabled:
+        return data
+
+    if config.silence_purifier:
+        data = process_silence_purifier(data, sr)
+
+    if config.subbass_filter:
+        data = process_subbass_filter(data, sr, cutoff_hz=config.subbass_cutoff)
+
+    if config.dereverb:
+        data = process_dereverb_clean(data, sr)
+
+    if config.deesser:
+        data = process_dynamic_deesser(data, sr, sibilance_freq_hz=config.deesser_freq)
+
+    if config.vocal_leveler:
+        data = process_vocal_leveler(data, sr)
+
+    if config.spectral_debleed and instru is not None:
+        data = process_spectral_debleed(data, instru, sr=sr)
+
+    if config.true_peak:
+        data = process_true_peak_normalization(data, target_dbfs=-1.0)
+
+    return data.astype(np.float32)
+
+
+def apply_pitch_tracked_subbass_filter(audio_path: Path | str, cutoff_hz: float = 65.0) -> Path:
+    """Apply high-pass Butterworth filter tailored to the singer's fundamental pitch."""
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+    filtered = process_subbass_filter(data, sr, cutoff_hz=cutoff_hz)
+    write_audio_file(path, filtered, sr)
+    logger.info("Applied pitch-tracked sub-bass filter (%.1f Hz) on %s", cutoff_hz, path.name)
+    return path
+
+
+def apply_dynamic_deesser(
+    audio_path: Path | str,
+    sibilance_freq_hz: float = 7200.0,
+    max_reduction_db: float = 4.0,
+) -> Path:
+    """Dynamic De-Esser: surgically attenuates harsh sibilants without dulling the vocal."""
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+    cleaned = process_dynamic_deesser(
+        data,
+        sr,
+        sibilance_freq_hz=sibilance_freq_hz,
+        max_reduction_db=max_reduction_db,
+    )
+    write_audio_file(path, cleaned, sr)
+    logger.info("Applied dynamic de-esser (%.1f kHz) on %s", sibilance_freq_hz / 1000.0, path.name)
+    return path
+
+
+def apply_dereverb_clean(
+    audio_path: Path | str,
+    max_decay_reduction_db: float = 4.0,
+    dry_ratio: float | None = None,
+) -> Path:
+    """De-Reverb module: preserves steady vocal vowels and direct attacks while suppressing lingering decay tails."""
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+    cleaned = process_dereverb_clean(
+        data,
+        sr,
+        max_decay_reduction_db=max_decay_reduction_db,
+        dry_ratio=dry_ratio,
+    )
+    write_audio_file(path, cleaned, sr)
+    logger.info("Applied De-Reverb studio module on %s", path.name)
+    return path
+
+
+def apply_silence_purifier(
+    audio_path: Path | str,
+    threshold_db: float = -46.0,
+    max_attenuation_db: float = 18.0,
+) -> Path:
+    """Silence purifier / Soft-Knee Downward Expander: cleans ghost bleed & noise in pauses without chopping phrase endings."""
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+    cleaned = process_silence_purifier(
+        data,
+        sr,
+        threshold_db=threshold_db,
+        max_attenuation_db=max_attenuation_db,
+    )
+    write_audio_file(path, cleaned, sr)
+    logger.info("Applied Silence Purifier / Anti-Ghosting on %s", path.name)
+    return path
+
+
+def apply_vocal_leveler(
+    audio_path: Path | str,
+    target_rms_db: float | None = None,
+    max_boost_db: float = 4.5,
+    max_cut_db: float = 4.5,
+    leveling_strength: float = 0.75,
+) -> Path:
+    """Vocal Rider / Dynamic Leveler: stabilizes vocal volume fluctuations across the song."""
+    path = Path(audio_path)
+    data, sr = sf.read(str(path), dtype="float32")
+    cleaned = process_vocal_leveler(
+        data,
+        sr,
+        target_rms_db=target_rms_db,
+        max_boost_db=max_boost_db,
+        max_cut_db=max_cut_db,
+        leveling_strength=leveling_strength,
+    )
+    write_audio_file(path, cleaned, sr)
+    logger.info("Applied Vocal Rider / Gain Leveler on %s", path.name)
     return path
 
 
@@ -663,17 +912,13 @@ def apply_true_peak_normalization(
     """True-Peak safety ceiling: clamps inter-sample clipping exceeding target_dbfs without amplifying bleed."""
     path = Path(audio_path)
     data, sr = sf.read(str(path), dtype="float32")
-
-    peak = float(np.max(np.abs(data)))
-    if peak <= 1e-6:
-        return path
-
-    target_linear = math.pow(10.0, target_dbfs / 20.0)
-    if peak > target_linear or allow_boost:
-        gain = target_linear / peak
-        normalized = data * gain
-        sf.write(str(path), normalized, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-        logger.info("Applied True-Peak ceiling (%.1f dBFS, gain %.2f) on %s", target_dbfs, gain, path.name)
+    normalized = process_true_peak_normalization(
+        data,
+        target_dbfs=target_dbfs,
+        allow_boost=allow_boost,
+    )
+    write_audio_file(path, normalized, sr)
+    logger.info("Applied True-Peak ceiling (%.1f dBFS) on %s", target_dbfs, path.name)
     return path
 
 
@@ -692,31 +937,8 @@ def apply_spectral_debleed(vocals_path: Path | str, instru_path: Path | str, red
     v_data, sr = sf.read(str(v_path), dtype="float32")
     i_data, _ = sf.read(str(i_path), dtype="float32")
 
-    min_len = min(len(v_data), len(i_data))
-    v = v_data[:min_len]
-    instru = i_data[:min_len]
-
-    frame_size = 2048
-    hop_size = 512
-    num_frames = (min_len - frame_size) // hop_size
-
-    if num_frames <= 0:
-        return
-
-    v_out = np.copy(v)
-    attenuation_factor = math.pow(10.0, -abs(reduction_db) / 20.0)
-
-    for i in range(0, min_len - frame_size, hop_size):
-        v_frame = v[i : i + frame_size]
-        i_frame = instru[i : i + frame_size]
-
-        v_energy = np.mean(v_frame**2)
-        i_energy = np.mean(i_frame**2)
-
-        if v_energy < 1e-4 and i_energy > 5e-3:
-            v_out[i : i + frame_size] *= attenuation_factor
-
-    sf.write(str(v_path), v_out, sr)
+    v_out = process_spectral_debleed(v_data, i_data, sr=sr, reduction_db=reduction_db)
+    write_audio_file(v_path, v_out, sr)
     logger.info("Applied soft spectral de-bleed on %s", v_path.name)
 
 
@@ -737,9 +959,9 @@ def convert_audio(
     input_path: Path | str,
     output_path: Path | str,
     *,
-    bitrate: Optional[str] = None,
-    bit_depth: Optional[int] = None,
-    sample_rate: Optional[int] = None,
+    bitrate: str | None = None,
+    bit_depth: int | None = None,
+    sample_rate: int | None = None,
 ) -> Path:
     """Convert input_path to output_path using ffmpeg."""
     input_path = Path(input_path)

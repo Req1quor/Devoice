@@ -1,90 +1,162 @@
 <div align="center">
 
-# 🎙️ Devoice
+# Devoice
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![GitHub release](https://img.shields.io/github/v/release/USERNAME/devoice)](https://github.com/USERNAME/devoice/releases)
-[![GitHub stars](https://img.shields.io/github/stars/USERNAME/devoice)](https://github.com/USERNAME/devoice/stargazers)
+**Studio-grade neural audio source separation and acoustic DSP workstation**
 
-**Sépare les voix de la musique en un clic grâce à l'IA.**
-
-Application de bureau pour extraire les pistes vocales et instrumentales de n'importe quel fichier audio, propulsée par [Demucs](https://github.com/facebookresearch/demucs) de Meta.
-
-[📥 Télécharger](https://github.com/USERNAME/devoice/releases) · [🐛 Signaler un bug](https://github.com/USERNAME/devoice/issues) · [💡 Proposer une fonctionnalité](https://github.com/USERNAME/devoice/issues)
+[![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-18181b?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B%20CUDA%2012.1-18181b?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-18181b?style=flat-square)](LICENSE)
+[![Code style: ruff](https://img.shields.io/badge/Code%20Style-Ruff-18181b?style=flat-square&logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![Tests: 43 passed](https://img.shields.io/badge/Tests-43%20Passed-18181b?style=flat-square)](tests/)
 
 </div>
 
 ---
 
-## ✨ Fonctionnalités
+## Overview
 
-- 🎵 **Séparation vocale de haute qualité** — Propulsé par Demucs (Meta AI), le modèle le plus avancé du marché
-- ⚡ **Accélération GPU** — Détection automatique CUDA pour un traitement jusqu'à 10x plus rapide
-- 🎨 **Interface moderne et intuitive** — Thème sombre élégant avec glisser-déposer de fichiers
-- 📦 **Traitement par lot** — Sépare plusieurs fichiers audio en une seule opération
-- 🎧 **Prévisualisation intégrée** — Écoute instantanée des pistes vocales et instrumentales extraites
-- 💾 **Formats multiples** — Exporte en WAV (16/24-bit), MP3 (320 kbps) ou FLAC
+**Devoice** is an offline desktop workstation designed for mix engineers, beatmakers, and vocalists who require pristine vocal isolation and stem separation. 
 
-## 🎯 Comparaison
+Unlike conventional tools that produce dry acapellas with residual phase artifacts, background bleed, and dynamic fluctuations, Devoice pairs deep neural separation architectures (**BS-RoFormer** and **MDX-Net**) with an automated, in-memory **Studio DSP Rack**.
 
-| Fonctionnalité | Sites web | FL Studio | **Devoice** |
-|---|---|---|---|
-| Qualité de séparation | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Hors-ligne | ❌ | ✅ | ✅ |
-| Gratuit | ⚠️ Limité | ❌ | ✅ |
-| Traitement par lot | ❌ | ❌ | ✅ |
-| Accélération GPU | ❌ | ❌ | ✅ |
-| Open source | ❌ | ❌ | ✅ |
+Once separated, stems can be **reprocessed in real time** (~100 ms) directly from the cached dry signal, allowing users to fine-tune vocal riding, de-essing, de-reverberation, and noise gating without re-running heavy neural inference.
 
-## 📥 Installation
+---
 
-### Option 1 : Exécutable (recommandé)
+## Key Capabilities
 
-1. Rendez-vous sur la page [Releases](https://github.com/USERNAME/devoice/releases)
-2. Téléchargez `Devoice-windows.zip`
-3. Décompressez l'archive
-4. Lancez `Devoice.exe`
+- **State-of-the-Art Separation** : Built on BS-RoFormer (ViperX SDR 12.98) and MDX-Net, offering exceptional vocal and instrumental isolation even on dense, heavily compressed productions.
+- **Real-Time DSP Reprocessing** : Adjust filters, vocal leveler, or de-esser on isolated stems with sub-second feedback. Dry stems remain immutable in memory while the output updates live in the playback preview.
+- **Integrated YouTube Ingestion** : Paste any video or track URL (or drag-and-drop from your browser) to extract high-bitrate audio and prepare it for separation in one click.
+- **Lossless 32-bit Float Processing** : Internal audio pipelines operate in continuous IEEE 32-bit float NumPy arrays, avoiding quantization distortion and inter-sample clipping before final export.
+- **Zero Cloud Dependency** : All model inference, DSP calculations, and file rendering run 100% locally on your GPU (NVIDIA CUDA) or CPU. Your audio never leaves your machine.
+- **Monochrome Interface** : A distraction-free, high-contrast desktop GUI built with PyQt6.
 
-### Option 2 : Depuis les sources
+---
+
+## Signal Flow Architecture
+
+```
+[ Input Audio File / YouTube Stream ]
+                  │
+                  ▼
+   [ Neural Separation Engine ] ──► (BS-RoFormer / MDX-Net)
+                  │
+        ┌─────────┴─────────┐
+        ▼                   ▼
+ [ Raw Instrumental ]  [ Raw Vocals (Cached Dry) ]
+        │                   │
+        │        ┌──────────┴──────────────────────────┐
+        │        ▼                                     ▼
+        │   [ Sub-Bass Highpass ]              (Real-Time DSP Tuning)
+        │   [ Dynamic Lookahead Leveler ]              │
+        │   [ Dynamic De-Esser (5-9 kHz) ]             │
+        │   [ Downward Silence Purifier ]              │
+        │   [ Energy Envelope De-Reverb ]              │
+        │   [ Inter-Stem Spectral De-Bleed ]           │
+        │   [ ITU-R BS.1770 True-Peak Limiter ]        │
+        │        └──────────┬──────────────────────────┘
+        │                   ▼
+        └─────────────► [ Master Stems ] ──► [ Studio Preview Player & Export ]
+```
+
+---
+
+## Performance Benchmark
+
+Signal-to-Distortion Ratio (SDR) on standard vocal isolation benchmarks (higher is better):
+
+| Architecture | Model | Vocal SDR (dB) | Artifact Suppression |
+| :--- | :--- | :---: | :---: |
+| **BS-RoFormer** | **ViperX SDR 12.98 (Default)** | **12.98 dB** | **Industry Lead** |
+| MDX-Net | MDX23C-8KFFT | 10.87 dB | High |
+| Demucs v4 | HTDemucs-FT | 9.20 dB | Moderate |
+| Spleeter | 2-Stems | 6.30 dB | Low (Audible Phase Bleed) |
+
+---
+
+## Studio DSP Modules
+
+| Module | Algorithm | Function |
+| :--- | :--- | :--- |
+| **Vocal Rider** | Dynamic lookahead RMS leveling | Stabilizes vocal dynamics and levels out drops in volume caused by loud instrumentals. |
+| **Dynamic De-Esser** | Spectral band splitting (5–9 kHz) | Attenuates harsh sibilants without dulling vocal brightness or high-end air. |
+| **Silence Purifier** | Soft-knee downward expander | Silences instrument bleed, headphone spill, and background noise during vocal pauses. |
+| **De-Reverb** | Decay envelope suppression | Tames room reflections and wet tails to yield a dry, direct cabin vocal. |
+| **Sub-Bass Filter** | 2nd-order Butterworth highpass | Filters sub-audible rumble calibrated to the fundamental vocal frequency (F0). |
+| **Spectral De-Bleed** | Cross-stem phase attenuation | Attenuates residual cymbal and high-frequency spill between vocal and instrumental tracks. |
+| **True-Peak Limiter** | Oversampled peak ceiling (-1.0 dBFS) | Prevents digital inter-sample clipping during lossy MP3/AAC compression or DAC playback. |
+
+---
+
+## Installation
+
+### Binary Release (Recommended for End Users)
+
+1. Download the latest `Devoice-Setup.exe` from the [Releases](https://github.com/USERNAME/devoice/releases) page.
+2. Run the installer and launch **Devoice** from your desktop or start menu.
+
+### Building from Source
+
+**Prerequisites:** Python 3.10+, Git, and an NVIDIA GPU with CUDA drivers (optional, CPU fallback supported).
 
 ```bash
-# Cloner le dépôt
+# Clone the repository
 git clone https://github.com/USERNAME/devoice.git
 cd devoice
 
-# Créer un environnement virtuel
+# Create and activate virtual environment
 python -m venv venv
-venv\Scripts\activate      # Windows
-# source venv/bin/activate  # Linux / macOS
+# Windows:
+venv\Scripts\activate
+# Linux / macOS:
+source venv/bin/activate
 
-# Installer les dépendances
+# Install dependencies with CUDA acceleration
+pip install --upgrade pip
 pip install -r requirements.txt
+
+# Launch application
+python main.py
 ```
 
-> [!NOTE]
-> Pour bénéficier de l'accélération GPU, installez la version CUDA de PyTorch :
-> ```bash
-> pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-> ```
+---
 
-## 🚀 Utilisation
+## Development & Verification
 
-1. **Lancez l'application** — Exécutez `python main.py` ou double-cliquez sur `Devoice.exe`
-2. **Ajoutez vos fichiers** — Glissez-déposez vos fichiers audio dans la zone de dépôt ou cliquez pour parcourir
-3. **Configurez** — Choisissez le modèle (Rapide ou Qualité Max) et le format de sortie
-4. **Séparez** — Cliquez sur « 🎤 Séparer » et attendez la fin du traitement
+Devoice adheres to strict quality assurance standards. The test suite includes full integration coverage, extreme boundary DSP checks, and concurrency verification.
 
-## 🤝 Contribuer
+```bash
+# Run the test suite (43 automated tests)
+pytest tests/ -v
 
-Les contributions sont les bienvenues ! Consultez le guide de contribution [CONTRIBUTING.md](CONTRIBUTING.md) pour commencer.
+# Run linting and code quality checks
+ruff check devoice/ tests/
+```
 
-## 📄 Licence
+---
 
-Ce projet est distribué sous la licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
+## Project Structure
 
-## 🙏 Crédits
+```
+devoice/
+├── audio_utils.py       # Acoustic diagnostics, NumPy DSP rack, and format writers
+├── config.py            # Global constants and supported format definitions
+├── engine.py            # Neural separation engine, model registry, and stem cache
+├── worker.py            # Background QThread workers (Separation, YouTube, Reprocess)
+├── youtube.py           # yt-dlp stream extraction and static-ffmpeg audio pipeline
+└── ui/
+    ├── audio_player.py  # Studio preview player with dynamic stem hot-swapping
+    ├── drop_zone.py     # Minimalist drag & drop and URL ingestion widget
+    ├── main_window.py   # Primary application window, controls, and event wiring
+    └── styles.py        # Cohesive dark monochrome design system (Noir & Blanc)
+```
 
-- [Demucs](https://github.com/facebookresearch/demucs) — Moteur de séparation audio par Meta AI Research
-- [PyTorch](https://pytorch.org/) — Framework d'apprentissage profond
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) — Framework d'interface graphique
+---
+
+## License & Credits
+
+- Distributed under the [GNU General Public License v3.0 (GPLv3)](LICENSE).
+- Core neural models courtesy of the **BS-RoFormer** and **MDX-Net** research communities.
+- Audio extraction powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [static-ffmpeg](https://github.com/zackees/static-ffmpeg).

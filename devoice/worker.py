@@ -6,10 +6,11 @@ import logging
 import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from devoice.audio_utils import DSPRackConfig
 from devoice.config import DEFAULT_OUTPUT_SUBDIR
 from devoice.engine import SeparationEngine
 
@@ -24,7 +25,7 @@ class SeparationJob:
     """Describes one file to be separated."""
 
     input_path: Path
-    output_dir: Optional[Path] = None
+    output_dir: Path | None = None
     output_format: str = "WAV (16-bit)"
     subbass_filter: bool = True
     subbass_cutoff: float = 65.0
@@ -78,11 +79,11 @@ class SeparationWorker(QThread):
 
     def __init__(
         self,
-        files: Optional[list[Path | str]] = None,
-        jobs: Optional[list[SeparationJob]] = None,
+        files: list[Path | str] | None = None,
+        jobs: list[SeparationJob] | None = None,
         model_name: str = "bs_roformer",
         output_format: str = "WAV (16-bit)",
-        output_dir: Optional[Path | str] = None,
+        output_dir: Path | str | None = None,
         subbass_filter: bool = True,
         subbass_cutoff: float = 65.0,
         deesser: bool = False,
@@ -92,7 +93,7 @@ class SeparationWorker(QThread):
         vocal_leveler: bool = True,
         true_peak: bool = True,
         spectral_debleed: bool = False,
-        parent: Optional[Any] = None,
+        parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self._model_name = model_name
@@ -181,7 +182,7 @@ class SeparationWorker(QThread):
     def _process_job(
         self,
         job: SeparationJob,
-        progress_callback: Optional[Any] = None,
+        progress_callback: Any | None = None,
     ) -> SeparationResult:
         """Run separation for a single job."""
         try:
@@ -236,8 +237,8 @@ class YouTubeDownloadWorker(QThread):
     def __init__(
         self,
         url: str,
-        output_dir: Optional[Path | str] = None,
-        parent: Optional[Any] = None,
+        output_dir: Path | str | None = None,
+        parent: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self.url = url
@@ -266,4 +267,66 @@ class YouTubeDownloadWorker(QThread):
             if not self._cancelled:
                 logger.exception("YouTube download failed: %s", exc)
                 self.error.emit(str(exc))
+
+
+# ── Post-Separation DSP Reprocess Worker ─────────────────────────────────────
+
+
+class ReprocessWorker(QThread):
+    """QThread that asynchronously reprocesses stems through the DSP rack without neural inference.
+
+    Signals
+    -------
+    reprocess_started()
+        Emitted when reprocessing begins.
+    reprocess_finished(Path)
+        Emitted upon successful reprocessing with the newly written stem Path.
+    reprocess_error(str)
+        Emitted when reprocessing raises an exception.
+    """
+
+    reprocess_started = pyqtSignal()
+    reprocess_finished = pyqtSignal(Path)
+    reprocess_error = pyqtSignal(str)
+
+    def __init__(
+        self,
+        engine: SeparationEngine,
+        raw_vocals_path: Path | str,
+        output_path: Path | str,
+        config: DSPRackConfig,
+        instru_path: Path | str | None = None,
+        parent: Any | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._engine = engine
+        self._raw_vocals_path = Path(raw_vocals_path)
+        self._output_path = Path(output_path)
+        self._config = config
+        self._instru_path = Path(instru_path) if instru_path else None
+        self._cancel_requested = False
+
+    def cancel(self) -> None:
+        """Request worker cancellation."""
+        self._cancel_requested = True
+
+    def run(self) -> None:
+        """Execute stem reprocessing in background thread."""
+        self.reprocess_started.emit()
+        try:
+            if not self._raw_vocals_path.is_file():
+                raise FileNotFoundError(f"Raw vocal stem not found: {self._raw_vocals_path}")
+
+            out = self._engine.reprocess_stem(
+                raw_vocals_path=self._raw_vocals_path,
+                output_path=self._output_path,
+                config=self._config,
+                instru_path=self._instru_path,
+            )
+            if not self._cancel_requested:
+                self.reprocess_finished.emit(out)
+        except Exception as exc:
+            logger.exception("ReprocessWorker failed: %s", exc)
+            if not self._cancel_requested:
+                self.reprocess_error.emit(str(exc))
 

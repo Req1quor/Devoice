@@ -3,11 +3,9 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-from PyQt6.QtCore import QMimeData, QUrl
+from PyQt6.QtCore import QMimeData
 
 from devoice.ui.drop_zone import DropZone
-from devoice.worker import YouTubeDownloadWorker
 from devoice.youtube import download_youtube_audio, extract_youtube_url, is_youtube_url
 
 

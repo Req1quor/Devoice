@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 import static_ffmpeg
 import yt_dlp
@@ -27,7 +27,7 @@ def is_youtube_url(text: str) -> bool:
     return bool(YOUTUBE_REGEX.search(clean))
 
 
-def extract_youtube_url(text: str) -> Optional[str]:
+def extract_youtube_url(text: str) -> str | None:
     """Extract and normalize a YouTube URL from an input string."""
     if not text:
         return None
@@ -45,7 +45,7 @@ def extract_youtube_url(text: str) -> Optional[str]:
 def download_youtube_audio(
     url: str,
     output_dir: Path,
-    progress_callback: Optional[Callable[[int, str], None]] = None,
+    progress_callback: Callable[[int, str], None] | None = None,
 ) -> Path:
     """Download highest quality audio from a YouTube video and convert to MP3.
 

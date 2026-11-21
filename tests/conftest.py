@@ -1,9 +1,10 @@
 """Pytest configuration and fixtures for Devoice test suite."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import soundfile as sf
-from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 
 
@@ -30,7 +31,7 @@ def sample_audio_path(tmp_path: Path) -> Path:
     sample_rate = 44100
     duration_s = 1.0
     t = np.linspace(0, duration_s, int(sample_rate * duration_s), endpoint=False)
-    
+
     # 440 Hz tone (stereo)
     tone = 0.2 * np.sin(2 * np.pi * 440 * t)
     stereo_signal = np.column_stack((tone, tone)).astype(np.float32)

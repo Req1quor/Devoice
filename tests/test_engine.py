@@ -1,7 +1,7 @@
 """Unit tests for the SeparationEngine device detection and basic properties."""
 
-import pytest
 import torch
+
 from devoice.engine import SeparationEngine
 from devoice.model_manager import ModelManager
 
