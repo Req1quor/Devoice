@@ -33,22 +33,19 @@ class TestStudioThemeAndDesignTokens:
     """Validates studio design tokens and stylesheet integrity."""
 
     def test_studio_tokens_defined(self):
-        # Surface tokens
-        assert StudioColors.SURFACE_BASE == "#111215"
-        assert StudioColors.SURFACE_PANEL == "#16181D"
-        assert StudioColors.SURFACE_ELEVATED == "#1D2027"
-        assert StudioColors.SURFACE_SUNKEN == "#0D0E11"
+        # Surface tokens (Pristine Noir & Blanc)
+        assert StudioColors.SURFACE_BASE == "#09090B"
+        assert StudioColors.SURFACE_PANEL == "#111114"
+        assert StudioColors.SURFACE_ELEVATED == "#18181B"
+        assert StudioColors.SURFACE_SUNKEN == "#0D0D10"
 
-        # Hardware accent tokens
+        # Monochrome and Hardware accent tokens
+        assert StudioColors.ACCENT_WHITE == "#FFFFFF"
         assert StudioColors.ACCENT_AMBER == "#F59E0B"
         assert StudioColors.ACCENT_CYAN == "#00D2FF"
-        assert StudioColors.ACCENT_EMERALD == "#10B981"
-        assert StudioColors.ACCENT_ROSE == "#EF4444"
-        assert StudioColors.ACCENT_SLATE == "#CBD5E1"
 
         # Typography & Metrics
         assert "Segoe UI" in StudioFonts.FONT_FAMILY_SANS
-        assert "Consolas" in StudioFonts.FONT_FAMILY_MONO
         assert StudioMetrics.RADIUS_MD == "6px"
 
     def test_theme_compilation_and_selectors(self):

@@ -92,6 +92,11 @@ def download_youtube_audio(
         "windowsfilenames": True,
         "quiet": True,
         "no_warnings": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "mweb"],
+            }
+        },
         "progress_hooks": [_progress_hook],
         "postprocessors": [
             {

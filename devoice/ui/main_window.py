@@ -425,14 +425,18 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"{file_path.name} téléchargé et prêt")
 
     def _on_youtube_error(self, err_msg: str) -> None:
+        import re
+
         self.progress_bar.setVisible(False)
         self.cancel_btn.setVisible(False)
         self.yt_input.setEnabled(True)
         self.yt_btn.setEnabled(True)
         self.yt_btn.setText("Télécharger")
         self.drop_zone.set_loaded_file(None)
-        short_err = err_msg.strip().split("\n")[-1]
-        self.status_label.setText(f"Erreur de téléchargement : {short_err}")
+        clean_err = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", err_msg)
+        clean_err = clean_err.replace("ERROR:", "").strip()
+        short_err = clean_err.split("\n")[-1].strip()
+        self.status_label.setText(f"Erreur téléchargement : {short_err}")
 
     def _on_files_dropped(self, paths: list[Path]) -> None:
         self.pending_files.extend(paths)

@@ -1,62 +1,63 @@
 """Studio-Grade Design System & QSS Generator for Devoice.
 
-Inspired by modern industrial audio hardware, high-end VST interfaces,
-Teenage Engineering, and Linear.
+Inspired by modern industrial minimalist audio hardware, high-end VST interfaces,
+Teenage Engineering, and Linear (Pristine Noir & Blanc).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
+_CHECK_SVG_PATH = Path(__file__).resolve().parent.parent / "assets" / "check.svg"
+_CHECK_SVG_URL = _CHECK_SVG_PATH.as_posix()
+
 
 class StudioColors:
-    """Design tokens for studio surfaces, borders, typography, and hardware accents."""
+    """Design tokens for minimalist studio surfaces, borders, typography, and monochrome accents."""
 
-    # Surfaces
-    SURFACE_BASE = "#111215"               # Main chassis
-    SURFACE_PANEL = "#16181D"              # Rack modules, cards
-    SURFACE_ELEVATED = "#1D2027"           # Hovered cards, elevated modules
-    SURFACE_SUNKEN = "#0D0E11"             # Sunken LCDs, inputs, meter grooves
-    SURFACE_INTERACTIVE = "#222631"        # Buttons, secondary controls
-    SURFACE_INTERACTIVE_HOVER = "#2B303E"  # Button hover
-    SURFACE_INTERACTIVE_PRESSED = "#171A21"# Button pressed
+    # Surfaces (Deep dark graphite / zinc)
+    SURFACE_BASE = "#09090B"               # Main chassis (deepest matte black)
+    SURFACE_PANEL = "#111114"              # Rack modules, cards
+    SURFACE_ELEVATED = "#18181B"           # Hovered cards, elevated modules
+    SURFACE_SUNKEN = "#0D0D10"             # Sunken LCDs, inputs, meter grooves
+    SURFACE_INTERACTIVE = "#18181B"        # Secondary buttons, controls
+    SURFACE_INTERACTIVE_HOVER = "#27272A"  # Button hover
+    SURFACE_INTERACTIVE_PRESSED = "#09090B"# Button pressed
 
     # Borders & Dividers
-    BORDER_SUBTLE = "#232733"              # Inner dividers, sunken grooves
-    BORDER_DEFAULT = "#2D3342"             # Component outlines, chassis edges
-    BORDER_METALLIC = "#3D4457"            # Metallic bezel highlight
-    BORDER_FOCUS = "#00D2FF"               # Focus ring
+    BORDER_SUBTLE = "#1E1E24"              # Inner dividers, sunken grooves
+    BORDER_DEFAULT = "#27272A"             # Component outlines, chassis edges
+    BORDER_METALLIC = "#3F3F46"            # Metallic bezel highlight on hover
+    BORDER_FOCUS = "#71717A"               # Neutral focus ring (pure monochrome)
 
     # Typography & Text
-    TEXT_PRIMARY = "#F1F5F9"               # Crisp high-contrast readout
-    TEXT_SECONDARY = "#94A3B8"             # Secondary labels, hints
-    TEXT_TERTIARY = "#64748B"              # Deep slate, unit specs
-    TEXT_DISABLED = "#475569"              # Inactive controls
-    TEXT_DARK = "#0B0C10"                  # Primary button text on bright fill
+    TEXT_PRIMARY = "#F4F4F5"               # Crisp high-contrast readout
+    TEXT_SECONDARY = "#A1A1AA"             # Secondary labels, hints
+    TEXT_TERTIARY = "#71717A"              # Deep slate, unit specs
+    TEXT_DISABLED = "#52525B"              # Inactive controls
+    TEXT_DARK = "#000000"                  # Primary button text on bright fill
 
-    # Studio Hardware Accents & LED Illumination
-    ACCENT_AMBER = "#F59E0B"               # Vocal stem, Hero action
-    ACCENT_AMBER_HOVER = "#FBBF24"
-    ACCENT_AMBER_PRESSED = "#D97706"
-    ACCENT_AMBER_DIM = "#2A1F0E"           # Subtle amber module glow
+    # Monochrome Accents
+    ACCENT_WHITE = "#FFFFFF"               # Hero action, active stems, indicators
+    ACCENT_WHITE_HOVER = "#E4E4E7"
+    ACCENT_WHITE_PRESSED = "#D4D4D8"
+    ACCENT_WHITE_DIM = "#27272A"
 
-    ACCENT_CYAN = "#00D2FF"                # Instrumental stem, focus ring, meter start
-    ACCENT_CYAN_DIM = "#0C2430"            # Subtle cyan module glow
-
-    ACCENT_EMERALD = "#10B981"             # DSP active LED, GPU hardware status
-    ACCENT_EMERALD_DIM = "#0F281E"
-
-    ACCENT_ROSE = "#EF4444"                # Cancel action, alerts
-    ACCENT_ROSE_BG = "#241416"
-    ACCENT_ROSE_BORDER = "#7F1D1D"
-
-    ACCENT_SLATE = "#CBD5E1"               # Original mix stem
-    ACCENT_SLATE_DIM = "#202531"
+    # Hardware LED / Status Accents (retained for backward compatibility)
+    ACCENT_AMBER = "#F59E0B"
+    ACCENT_CYAN = "#00D2FF"
+    ACCENT_EMERALD = "#10B981"
+    ACCENT_ROSE = "#EF4444"
+    ACCENT_ROSE_BG = "#221010"
+    ACCENT_ROSE_BORDER = "#451A1A"
+    ACCENT_SLATE = "#CBD5E1"
 
 
 class StudioFonts:
     """Typographic scale and font stacks."""
 
-    FONT_FAMILY_SANS = "'Segoe UI', 'Inter', -apple-system, sans-serif"
-    FONT_FAMILY_MONO = "'Consolas', 'Cascadia Code', 'JetBrains Mono', monospace"
+    FONT_FAMILY_SANS = "'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+    FONT_FAMILY_MONO = "'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
 
 
 class StudioMetrics:
@@ -69,11 +70,11 @@ class StudioMetrics:
 
 
 def build_studio_theme() -> str:
-    """Generate the complete studio-grade QSS theme string."""
+    """Generate the complete studio-grade QSS theme string in pristine Noir & Blanc."""
     return f"""
 /* ==========================================================================
    DEVOICE STUDIO-GRADE WORKSTATION THEME
-   Industrial Hardware & VST Aesthetic
+   Pristine Minimalist Noir & Blanc Aesthetic
    ========================================================================== */
 
 /* === Global Application Root === */
@@ -99,8 +100,8 @@ QLabel, QCheckBox {{
 #TitleLabel {{
     font-size: 17px;
     font-weight: 800;
-    letter-spacing: 1.5px;
-    color: {StudioColors.TEXT_PRIMARY};
+    letter-spacing: 1.2px;
+    color: {StudioColors.ACCENT_WHITE};
     padding-left: 2px;
 }}
 
@@ -109,9 +110,9 @@ QLabel, QCheckBox {{
     border: 1px solid {StudioColors.BORDER_DEFAULT};
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 4px 10px;
-    font-family: {StudioFonts.FONT_FAMILY_MONO};
+    font-family: {StudioFonts.FONT_FAMILY_SANS};
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     color: {StudioColors.TEXT_SECONDARY};
 }}
 
@@ -129,18 +130,18 @@ QLabel, QCheckBox {{
 }}
 
 #DropZone[dragOver="true"] {{
-    background-color: #1F1E19;
-    border: 1.5px solid {StudioColors.ACCENT_AMBER};
+    background-color: {StudioColors.SURFACE_ELEVATED};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
 }}
 
 #DropZone[loaded="true"] {{
-    background-color: #151821;
-    border: 1.5px solid {StudioColors.BORDER_METALLIC};
+    background-color: {StudioColors.SURFACE_PANEL};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
 }}
 
 #DropZone[loaded="true"]:hover {{
-    border-color: {StudioColors.ACCENT_CYAN};
-    background-color: #191E2B;
+    border-color: {StudioColors.ACCENT_WHITE};
+    background-color: {StudioColors.SURFACE_ELEVATED};
 }}
 
 #DropZoneTitle {{
@@ -155,7 +156,7 @@ QLabel, QCheckBox {{
 }}
 
 #DropZoneFormats {{
-    font-family: {StudioFonts.FONT_FAMILY_MONO};
+    font-family: {StudioFonts.FONT_FAMILY_SANS};
     font-size: 10.5px;
     letter-spacing: 0.5px;
     color: {StudioColors.TEXT_TERTIARY};
@@ -169,7 +170,7 @@ QLineEdit#YouTubeInput {{
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 7px 12px;
     font-size: 12px;
-    selection-background-color: {StudioColors.SURFACE_INTERACTIVE};
+    selection-background-color: {StudioColors.BORDER_METALLIC};
     selection-color: {StudioColors.TEXT_PRIMARY};
 }}
 
@@ -178,8 +179,8 @@ QLineEdit#YouTubeInput:hover {{
 }}
 
 QLineEdit#YouTubeInput:focus {{
-    border: 1px solid {StudioColors.ACCENT_CYAN};
-    background-color: #0E1217;
+    border: 1px solid {StudioColors.BORDER_FOCUS};
+    background-color: #121216;
 }}
 
 QLineEdit#YouTubeInput:disabled {{
@@ -191,7 +192,7 @@ QLineEdit#YouTubeInput:disabled {{
 QPushButton#YouTubeButton {{
     background-color: {StudioColors.SURFACE_INTERACTIVE};
     color: {StudioColors.TEXT_PRIMARY};
-    border: 1px solid {StudioColors.BORDER_METALLIC};
+    border: 1px solid {StudioColors.BORDER_DEFAULT};
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 7px 16px;
     font-size: 12px;
@@ -200,7 +201,8 @@ QPushButton#YouTubeButton {{
 
 QPushButton#YouTubeButton:hover {{
     background-color: {StudioColors.SURFACE_INTERACTIVE_HOVER};
-    border-color: #4D566D;
+    border-color: {StudioColors.BORDER_METALLIC};
+    color: {StudioColors.ACCENT_WHITE};
 }}
 
 QPushButton#YouTubeButton:pressed {{
@@ -220,7 +222,6 @@ QListWidget {{
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 4px;
     color: {StudioColors.TEXT_SECONDARY};
-    font-family: {StudioFonts.FONT_FAMILY_MONO};
     font-size: 11px;
 }}
 
@@ -263,7 +264,7 @@ QComboBox:hover {{
 }}
 
 QComboBox:focus {{
-    border: 1px solid {StudioColors.ACCENT_CYAN};
+    border: 1px solid {StudioColors.BORDER_FOCUS};
 }}
 
 QComboBox::drop-down {{
@@ -289,7 +290,7 @@ QComboBox QAbstractItemView {{
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 4px;
     color: {StudioColors.TEXT_PRIMARY};
-    selection-background-color: {StudioColors.SURFACE_INTERACTIVE};
+    selection-background-color: {StudioColors.SURFACE_INTERACTIVE_HOVER};
     selection-color: {StudioColors.TEXT_PRIMARY};
 }}
 
@@ -308,6 +309,7 @@ QPushButton {{
 QPushButton:hover {{
     background-color: {StudioColors.SURFACE_INTERACTIVE_HOVER};
     border-color: {StudioColors.BORDER_METALLIC};
+    color: {StudioColors.ACCENT_WHITE};
 }}
 
 QPushButton:pressed {{
@@ -332,7 +334,7 @@ QPushButton:disabled {{
 }}
 
 #OptionsDrawerButton:hover, QPushButton#OptionsDrawerButton:hover {{
-    background-color: {StudioColors.SURFACE_INTERACTIVE};
+    background-color: {StudioColors.SURFACE_INTERACTIVE_HOVER};
     border-color: {StudioColors.BORDER_METALLIC};
     color: {StudioColors.TEXT_PRIMARY};
 }}
@@ -345,7 +347,7 @@ QPushButton:disabled {{
     padding: 8px 12px;
 }}
 
-/* === Tactile Studio Checkboxes (Hardware Rocker Switch Look) === */
+/* === Tactile Studio Checkboxes (Noir & Blanc Minimalism) === */
 QCheckBox {{
     color: {StudioColors.TEXT_PRIMARY};
     font-size: 12px;
@@ -366,19 +368,20 @@ QCheckBox::indicator {{
 }}
 
 QCheckBox::indicator:hover {{
-    border-color: {StudioColors.TEXT_SECONDARY};
+    border-color: {StudioColors.BORDER_FOCUS};
     background-color: {StudioColors.SURFACE_ELEVATED};
 }}
 
 QCheckBox::indicator:checked {{
-    background-color: {StudioColors.ACCENT_AMBER};
-    border: 1.5px solid {StudioColors.ACCENT_AMBER};
-    image: none;
+    background-color: {StudioColors.ACCENT_WHITE};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
+    image: url("{_CHECK_SVG_URL}");
 }}
 
 QCheckBox::indicator:checked:hover {{
-    background-color: {StudioColors.ACCENT_AMBER_HOVER};
-    border-color: {StudioColors.ACCENT_AMBER_HOVER};
+    background-color: {StudioColors.ACCENT_WHITE_HOVER};
+    border-color: {StudioColors.ACCENT_WHITE_HOVER};
+    image: url("{_CHECK_SVG_URL}");
 }}
 
 QCheckBox::indicator:disabled {{
@@ -390,33 +393,33 @@ QCheckBox:disabled {{
     color: {StudioColors.TEXT_DISABLED};
 }}
 
-/* === Primary Action Button (Tactile Studio Amber Hero) === */
+/* === Primary Action Button (Pure Crisp White Hero) === */
 QPushButton#PrimaryButton {{
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {StudioColors.ACCENT_AMBER_HOVER}, stop:1 {StudioColors.ACCENT_AMBER_PRESSED});
+    background-color: {StudioColors.ACCENT_WHITE};
     color: {StudioColors.TEXT_DARK};
-    border: 1px solid {StudioColors.ACCENT_AMBER};
+    border: 1px solid {StudioColors.ACCENT_WHITE};
     border-radius: {StudioMetrics.RADIUS_MD};
     font-size: 13.5px;
     font-weight: 800;
-    letter-spacing: 0.8px;
+    letter-spacing: 0.6px;
     padding: 10px 24px;
     min-height: 22px;
 }}
 
 QPushButton#PrimaryButton:hover {{
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FCD34D, stop:1 {StudioColors.ACCENT_AMBER});
-    border-color: #FDE68A;
+    background-color: {StudioColors.ACCENT_WHITE_HOVER};
+    border-color: {StudioColors.ACCENT_WHITE_HOVER};
     color: #000000;
 }}
 
 QPushButton#PrimaryButton:pressed {{
-    background-color: #B45309;
-    border-color: #92400E;
+    background-color: {StudioColors.ACCENT_WHITE_PRESSED};
+    border-color: {StudioColors.ACCENT_WHITE_PRESSED};
     color: #000000;
 }}
 
 QPushButton#PrimaryButton:disabled {{
-    background: {StudioColors.SURFACE_PANEL};
+    background-color: {StudioColors.SURFACE_PANEL};
     color: {StudioColors.TEXT_DISABLED};
     border: 1px solid {StudioColors.BORDER_SUBTLE};
 }}
@@ -452,20 +455,20 @@ QProgressBar {{
 }}
 
 QProgressBar::chunk {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {StudioColors.ACCENT_CYAN}, stop:1 {StudioColors.ACCENT_AMBER});
+    background-color: {StudioColors.ACCENT_WHITE};
     border-radius: 3px;
 }}
 
 /* === Status Console Readout === */
 #StatusLabel, QLabel#StatusLabel {{
     color: {StudioColors.TEXT_SECONDARY};
-    font-family: {StudioFonts.FONT_FAMILY_MONO};
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
+    font-family: {StudioFonts.FONT_FAMILY_SANS};
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
 }}
 
-/* === AudioPreviewPlayer (Studio VST Console) === */
+/* === AudioPreviewPlayer (Studio Console) === */
 #PlayerTrackLabel {{
     font-family: {StudioFonts.FONT_FAMILY_SANS};
     font-size: 11px;
@@ -479,67 +482,75 @@ QProgressBar::chunk {{
     border: 1px solid {StudioColors.BORDER_SUBTLE};
     border-radius: {StudioMetrics.RADIUS_SM};
     padding: 3px 8px;
-    font-family: {StudioFonts.FONT_FAMILY_MONO};
+    font-family: {StudioFonts.FONT_FAMILY_SANS};
     font-size: 11.5px;
-    font-weight: 700;
+    font-weight: 600;
     color: {StudioColors.TEXT_PRIMARY};
 }}
 
-/* Precision Aluminum Scrubber Slider */
+/* Precision Scrubber Slider */
 QSlider::groove:horizontal {{
-    height: 5px;
+    height: 4px;
     background-color: {StudioColors.SURFACE_SUNKEN};
     border: 1px solid {StudioColors.BORDER_SUBTLE};
     border-radius: 2px;
 }}
 
 QSlider::sub-page:horizontal {{
-    background-color: {StudioColors.ACCENT_CYAN};
+    background-color: {StudioColors.ACCENT_WHITE};
     border-radius: 2px;
 }}
 
 QSlider::handle:horizontal {{
-    background-color: {StudioColors.TEXT_PRIMARY};
-    border: 1.5px solid {StudioColors.BORDER_METALLIC};
-    width: 13px;
-    height: 13px;
-    margin-top: -5px;
-    margin-bottom: -5px;
-    border-radius: 6.5px;
+    background-color: {StudioColors.ACCENT_WHITE};
+    border: 1px solid {StudioColors.BORDER_METALLIC};
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    margin-bottom: -4px;
+    border-radius: 6px;
 }}
 
 QSlider::handle:horizontal:hover {{
-    background-color: #FFFFFF;
-    border: 1.5px solid {StudioColors.ACCENT_CYAN};
+    background-color: {StudioColors.ACCENT_WHITE};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
 }}
 
 /* Transport Play Button */
 QPushButton#PlayButton {{
-    background-color: {StudioColors.SURFACE_INTERACTIVE};
-    color: {StudioColors.TEXT_PRIMARY};
-    border: 1px solid {StudioColors.BORDER_METALLIC};
+    background-color: {StudioColors.ACCENT_WHITE};
+    color: {StudioColors.TEXT_DARK};
+    border: 1px solid {StudioColors.ACCENT_WHITE};
     font-weight: 700;
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 6px 16px;
 }}
 
 QPushButton#PlayButton:hover {{
-    background-color: {StudioColors.SURFACE_INTERACTIVE_HOVER};
-    border-color: #4D566D;
+    background-color: {StudioColors.ACCENT_WHITE_HOVER};
+    border-color: {StudioColors.ACCENT_WHITE_HOVER};
 }}
 
 QPushButton#PlayButton:pressed {{
-    background-color: {StudioColors.SURFACE_INTERACTIVE_PRESSED};
+    background-color: {StudioColors.ACCENT_WHITE_PRESSED};
 }}
 
 /* Stem Switchers */
 QPushButton#StemActive {{
-    background-color: {StudioColors.SURFACE_INTERACTIVE};
-    color: {StudioColors.TEXT_PRIMARY};
-    border: 1.5px solid {StudioColors.TEXT_PRIMARY};
+    background-color: {StudioColors.ACCENT_WHITE};
+    color: {StudioColors.TEXT_DARK};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
     font-weight: 700;
     border-radius: {StudioMetrics.RADIUS_MD};
     padding: 5px 14px;
+}}
+
+QPushButton#StemActive[stem="vocals"],
+QPushButton#StemActive[stem="instru"],
+QPushButton#StemActive[stem="original"] {{
+    background-color: {StudioColors.ACCENT_WHITE};
+    border: 1.5px solid {StudioColors.ACCENT_WHITE};
+    color: {StudioColors.TEXT_DARK};
 }}
 
 QPushButton#StemInactive {{
@@ -554,25 +565,6 @@ QPushButton#StemInactive {{
 QPushButton#StemInactive:hover {{
     background-color: {StudioColors.SURFACE_ELEVATED};
     border-color: {StudioColors.BORDER_METALLIC};
-    color: {StudioColors.TEXT_PRIMARY};
-}}
-
-/* Dedicated Stem Color Coding */
-QPushButton#StemActive[stem="vocals"] {{
-    background-color: {StudioColors.ACCENT_AMBER_DIM};
-    border: 1.5px solid {StudioColors.ACCENT_AMBER};
-    color: #FCD34D;
-}}
-
-QPushButton#StemActive[stem="instru"] {{
-    background-color: {StudioColors.ACCENT_CYAN_DIM};
-    border: 1.5px solid {StudioColors.ACCENT_CYAN};
-    color: #7DD3FC;
-}}
-
-QPushButton#StemActive[stem="original"] {{
-    background-color: {StudioColors.ACCENT_SLATE_DIM};
-    border: 1.5px solid {StudioColors.ACCENT_SLATE};
     color: {StudioColors.TEXT_PRIMARY};
 }}
 """
