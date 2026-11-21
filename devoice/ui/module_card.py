@@ -1,4 +1,4 @@
-"""Interactive studio rack module card widget for Devoice."""
+"""Terminal ASCII hardware rack module card widget for Devoice."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 
 class StudioModuleCard(QFrame):
-    """Sleek tactile studio rack module card with status LED and parameter chip."""
+    """Sharp ASCII / terminal rack module card with monospace parameters and ASCII status."""
 
     toggled = pyqtSignal(bool)
 
@@ -15,7 +15,7 @@ class StudioModuleCard(QFrame):
         self,
         title: str,
         default_param: str = "",
-        default_reason: str = "En attente d'un fichier audio…",
+        default_reason: str = ":: EN ATTENTE D'UN FICHIER AUDIO...",
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -32,30 +32,40 @@ class StudioModuleCard(QFrame):
         self._update_appearance()
 
     def _setup_ui(self) -> None:
-        self.setFixedHeight(64)
+        self.setFixedHeight(58)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(3)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(2)
 
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
 
-        self._led = QLabel("○")
-        self._led.setFixedWidth(14)
-        top_row.addWidget(self._led)
+        # ASCII status indicator: [ON] vs [--]
+        self._status_badge = QLabel("[--]")
+        self._status_badge.setFixedWidth(36)
+        self._status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status_badge.setStyleSheet(
+            "font-family: 'Consolas', 'Cascadia Code', monospace; "
+            "font-size: 10px; font-weight: 700; color: #52525b; "
+            "background-color: #0d0d11; border: 1px solid #1f1f23;"
+        )
+        top_row.addWidget(self._status_badge)
 
-        self._lbl_title = QLabel(self._title_str)
-        self._lbl_title.setStyleSheet("font-weight: 600; font-size: 12px; color: #f4f4f5; letter-spacing: 0.2px;")
+        self._lbl_title = QLabel(self._title_str.upper())
+        self._lbl_title.setStyleSheet(
+            "font-family: 'Consolas', 'Cascadia Code', monospace; "
+            "font-weight: 700; font-size: 11px; color: #ffffff; letter-spacing: 0.5px;"
+        )
         top_row.addWidget(self._lbl_title)
 
         top_row.addStretch()
 
-        self._lbl_param = QLabel(self._param_str)
+        self._lbl_param = QLabel(f"[ {self._param_str} ]" if self._param_str else "")
         self._lbl_param.setStyleSheet(
+            "font-family: 'Consolas', 'Cascadia Code', monospace; "
             "font-size: 10px; font-weight: 700; color: #a1a1aa; "
-            "background-color: #181822; padding: 2px 7px; border-radius: 4px; "
-            "border: 1px solid #232330;"
+            "background-color: #0d0d11; padding: 1px 6px; border: 1px solid #27272a;"
         )
         if not self._param_str:
             self._lbl_param.setVisible(False)
@@ -64,7 +74,10 @@ class StudioModuleCard(QFrame):
         layout.addLayout(top_row)
 
         self._lbl_reason = QLabel(self._reason_str)
-        self._lbl_reason.setStyleSheet("font-size: 10px; color: #71717a;")
+        self._lbl_reason.setStyleSheet(
+            "font-family: 'Consolas', 'Cascadia Code', monospace; "
+            "font-size: 10px; color: #71717a;"
+        )
         layout.addWidget(self._lbl_reason)
 
     def mousePressEvent(self, event) -> None:
@@ -90,68 +103,92 @@ class StudioModuleCard(QFrame):
         self._recommended = recommended
 
         if param_text:
-            self._lbl_param.setText(param_text)
+            self._lbl_param.setText(f"[ {param_text} ]")
             self._lbl_param.setVisible(True)
         else:
             self._lbl_param.setVisible(False)
 
-        self._lbl_reason.setText(reason_text)
+        # Prefix reason with terminal marker if not already present
+        display_reason = reason_text if reason_text.startswith("::") else f":: {reason_text}"
+        self._lbl_reason.setText(display_reason)
         if recommended:
-            self._lbl_reason.setStyleSheet("font-size: 10px; font-weight: 500; color: #4ade80;")
+            self._lbl_reason.setStyleSheet(
+                "font-family: 'Consolas', 'Cascadia Code', monospace; "
+                "font-size: 10px; font-weight: 600; color: #22c55e;"
+            )
         else:
-            self._lbl_reason.setStyleSheet("font-size: 10px; color: #71717a;")
+            self._lbl_reason.setStyleSheet(
+                "font-family: 'Consolas', 'Cascadia Code', monospace; "
+                "font-size: 10px; color: #71717a;"
+            )
 
     def _update_appearance(self) -> None:
         if not self._enabled:
             self.setStyleSheet("""
                 QFrame#StudioModuleCard {
-                    background-color: #09090c;
-                    border: 1px solid #14141a;
-                    border-radius: 9px;
+                    background-color: #08080a;
+                    border: 1px solid #141416;
+                    border-radius: 0px;
                 }
             """)
-            self._led.setText("○")
-            self._led.setStyleSheet("color: #3f3f46; font-size: 12px;")
-            self._lbl_title.setStyleSheet("font-weight: 500; font-size: 12px; color: #52525b;")
+            self._status_badge.setText("[--]")
+            self._status_badge.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-size: 10px; font-weight: 600; "
+                "color: #27272a; background-color: #08080a; border: 1px solid #141416;"
+            )
+            self._lbl_title.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-weight: 500; font-size: 11px; color: #3f3f46;"
+            )
+            self._lbl_param.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-size: 10px; color: #3f3f46; "
+                "background-color: #08080a; padding: 1px 6px; border: 1px solid #141416;"
+            )
             return
 
-        self._lbl_title.setStyleSheet("font-weight: 600; font-size: 12px; color: #f4f4f5; letter-spacing: 0.2px;")
+        self._lbl_title.setStyleSheet(
+            "font-family: 'Consolas', monospace; font-weight: 700; font-size: 11px; "
+            "color: #ffffff; letter-spacing: 0.5px;"
+        )
 
         if self._checked:
             self.setStyleSheet("""
                 QFrame#StudioModuleCard {
-                    background-color: #101118;
-                    border: 1px solid #2d3042;
-                    border-radius: 9px;
+                    background-color: #0f0f14;
+                    border: 1px solid #3f3f46;
+                    border-radius: 0px;
                 }
                 QFrame#StudioModuleCard:hover {
-                    border-color: #4f5370;
-                    background-color: #14151f;
+                    border-color: #71717a;
+                    background-color: #14141a;
                 }
             """)
-            self._led.setText("●")
-            self._led.setStyleSheet("color: #22c55e; font-size: 13px;")
+            self._status_badge.setText("[ON]")
+            self._status_badge.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; "
+                "color: #22c55e; background-color: #121217; border: 1px solid #22c55e;"
+            )
             self._lbl_param.setStyleSheet(
-                "font-size: 10px; font-weight: 700; color: #ffffff; "
-                "background-color: #202230; padding: 2px 7px; border-radius: 4px; "
-                "border: 1px solid #363950;"
+                "font-family: 'Consolas', monospace; font-size: 10px; font-weight: 700; "
+                "color: #ffffff; background-color: #18181b; padding: 1px 6px; border: 1px solid #52525b;"
             )
         else:
             self.setStyleSheet("""
                 QFrame#StudioModuleCard {
-                    background-color: #0b0b0e;
-                    border: 1px solid #181820;
-                    border-radius: 9px;
+                    background-color: #0a0a0d;
+                    border: 1px solid #1f1f23;
+                    border-radius: 0px;
                 }
                 QFrame#StudioModuleCard:hover {
-                    border-color: #262632;
-                    background-color: #0f0f13;
+                    border-color: #3f3f46;
+                    background-color: #0e0e12;
                 }
             """)
-            self._led.setText("○")
-            self._led.setStyleSheet("color: #52525b; font-size: 13px;")
+            self._status_badge.setText("[--]")
+            self._status_badge.setStyleSheet(
+                "font-family: 'Consolas', monospace; font-size: 10px; font-weight: 600; "
+                "color: #52525b; background-color: #0d0d11; border: 1px solid #1f1f23;"
+            )
             self._lbl_param.setStyleSheet(
-                "font-size: 10px; font-weight: 600; color: #71717a; "
-                "background-color: #14141c; padding: 2px 7px; border-radius: 4px; "
-                "border: 1px solid #1e1e28;"
+                "font-family: 'Consolas', monospace; font-size: 10px; font-weight: 500; "
+                "color: #71717a; background-color: #0f0f13; padding: 1px 6px; border: 1px solid #27272a;"
             )

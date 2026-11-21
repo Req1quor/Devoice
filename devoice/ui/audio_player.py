@@ -50,11 +50,15 @@ class AudioPreviewPlayer(QWidget):
 
         # Header with active track name and time
         top_row = QHBoxLayout()
-        self._label_track = QLabel("PRÉVISUALISATION STUDIO")
-        self._label_track.setStyleSheet("font-size: 11px; font-weight: 700; color: #71717a; letter-spacing: 0.5px;")
+        self._label_track = QLabel(">> PREVISUALISATION AUDIO")
+        self._label_track.setStyleSheet(
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; color: #a1a1aa; letter-spacing: 0.8px;"
+        )
         
-        self._label_time = QLabel("00:00 / 00:00")
-        self._label_time.setStyleSheet("font-size: 11px; color: #a1a1aa; font-family: monospace;")
+        self._label_time = QLabel("[ 00:00 / 00:00 ]")
+        self._label_time.setStyleSheet(
+            "font-family: 'Consolas', monospace; font-size: 11px; color: #71717a;"
+        )
 
         top_row.addWidget(self._label_track)
         top_row.addStretch()
@@ -65,22 +69,22 @@ class AudioPreviewPlayer(QWidget):
         controls_row = QHBoxLayout()
         controls_row.setSpacing(8)
 
-        self._btn_play = QPushButton("▶")
-        self._btn_play.setFixedWidth(40)
+        self._btn_play = QPushButton("[ > ]")
+        self._btn_play.setFixedWidth(48)
         self._btn_play.clicked.connect(self._toggle_play)
         controls_row.addWidget(self._btn_play)
 
         controls_row.addSpacing(6)
 
-        self._btn_orig = QPushButton("Mix Original")
+        self._btn_orig = QPushButton("[ ORIGINAL ]")
         self._btn_orig.clicked.connect(lambda: self._switch_stem("original"))
         controls_row.addWidget(self._btn_orig)
 
-        self._btn_vocals = QPushButton("Acapella")
+        self._btn_vocals = QPushButton("[ ACAPELLA ]")
         self._btn_vocals.clicked.connect(lambda: self._switch_stem("vocals"))
         controls_row.addWidget(self._btn_vocals)
 
-        self._btn_instru = QPushButton("Instrumentale")
+        self._btn_instru = QPushButton("[ INSTRU ]")
         self._btn_instru.clicked.connect(lambda: self._switch_stem("instru"))
         controls_row.addWidget(self._btn_instru)
 
@@ -162,17 +166,17 @@ class AudioPreviewPlayer(QWidget):
 
         if was_playing:
             self._player.play()
-            self._btn_play.setText("⏸")
+            self._btn_play.setText("[ || ]")
 
     # ── Playback Helpers ────────────────────────────────────────────────
 
     def _toggle_play(self) -> None:
         if self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
             self._player.pause()
-            self._btn_play.setText("▶")
+            self._btn_play.setText("[ > ]")
         else:
             self._player.play()
-            self._btn_play.setText("⏸")
+            self._btn_play.setText("[ || ]")
 
     def _seek(self, position: int) -> None:
         self._player.setPosition(position)

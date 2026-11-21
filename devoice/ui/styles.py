@@ -1,183 +1,208 @@
-"""Minimalist high-end studio stylesheet for Devoice (Teenage Engineering / Nothing OS / Apple aesthetic)."""
+"""Dark Monospace ASCII / Dither / Terminal Hardware theme for Devoice."""
 
 DARK_THEME = """
-/* === Global Window & Fonts === */
+/* === Global Window & Monospace Typography === */
 QMainWindow, QWidget {
-    background-color: #070709;
+    background-color: #08080a;
     color: #e4e4e7;
-    font-family: 'Segoe UI Variable Display', 'Segoe UI', -apple-system, sans-serif;
-    font-size: 13px;
-    selection-background-color: #272732;
+    font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+    font-size: 12px;
+    selection-background-color: #27272a;
     selection-color: #ffffff;
 }
 
-/* === Header Labels === */
+/* === Top Terminal Banner === */
 #TitleLabel {
-    font-size: 22px;
-    font-weight: 800;
-    letter-spacing: -0.6px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 1px;
     color: #ffffff;
 }
 #SubtitleLabel {
     font-size: 11px;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
     color: #71717a;
     font-weight: 500;
 }
 #DeviceLabel {
-    background-color: #0f1016;
-    border: 1px solid #1f2230;
-    border-radius: 12px;
-    padding: 5px 14px;
+    background-color: #0d0d11;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 5px 12px;
     font-size: 11px;
     font-weight: 600;
-    color: #d4d4d8;
+    color: #22c55e;
+    letter-spacing: 0.5px;
 }
 
-/* === Drop Zone (Modern Deck) === */
+/* === Drop Zone (ASCII / Dither Chassis) === */
 #DropZone {
-    background-color: #0b0b0f;
-    border: 1.5px dashed #22232e;
-    border-radius: 16px;
-    min-height: 155px;
+    background-color: #0a0a0d;
+    border: 1px dashed #27272a;
+    border-radius: 0px;
+    min-height: 145px;
 }
 #DropZone:hover {
-    border-color: #4f5370;
-    background-color: #101118;
+    border: 1px dashed #52525b;
+    background-color: #0f0f14;
 }
 #DropZone[loaded="true"] {
-    background-color: #0f111a;
-    border: 1.5px solid #2e3248;
+    background-color: #0d0d12;
+    border: 1px solid #3f3f46;
 }
 #DropZone[loaded="true"]:hover {
-    border-color: #555b82;
-    background-color: #141724;
+    border: 1px solid #71717a;
+    background-color: #121218;
 }
 #DropZoneLabel {
-    color: #d4d4d8;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.3px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
 }
 #DropZoneIcon {
-    font-size: 28px;
-    color: #71717a;
+    font-size: 14px;
+    color: #a1a1aa;
+    font-weight: 700;
+    letter-spacing: 1.5px;
 }
 
 /* === File List === */
 QListWidget {
-    background-color: #0b0b0f;
-    border: 1px solid #1c1c24;
-    border-radius: 10px;
-    padding: 6px;
+    background-color: #0a0a0d;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 4px;
     color: #e4e4e7;
+    font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
 }
 QListWidget::item {
-    background-color: #121218;
-    border: 1px solid #1c1c24;
-    border-radius: 6px;
-    padding: 6px 12px;
+    background-color: #0f0f13;
+    border: 1px solid #1f1f23;
+    border-radius: 0px;
+    padding: 6px 10px;
     margin-bottom: 2px;
 }
 QListWidget::item:selected {
-    border-color: #4b4e69;
-    background-color: #181922;
+    border-color: #52525b;
+    background-color: #18181b;
+    color: #ffffff;
 }
 
-/* === Controls & Combobox === */
+/* === Labels & Text === */
 QLabel {
     color: #a1a1aa;
-    font-size: 12px;
-    font-weight: 500;
+    font-size: 11px;
 }
+
+/* === Combobox (Terminal Dropdown) === */
 QComboBox {
-    background-color: #0f1016;
-    border: 1px solid #222432;
-    border-radius: 8px;
-    padding: 7px 14px;
-    color: #fafafa;
+    background-color: #0d0d11;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 6px 12px;
+    color: #ffffff;
     font-weight: 600;
-    font-size: 12px;
-    min-height: 18px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
 }
 QComboBox:hover {
-    border-color: #3f435c;
-    background-color: #14151e;
+    border-color: #52525b;
+    background-color: #121217;
 }
 QComboBox::drop-down {
     border: none;
-    padding-right: 10px;
+    width: 20px;
+}
+QComboBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #71717a;
+    margin-right: 6px;
 }
 QComboBox QAbstractItemView {
-    background-color: #0f1016;
-    border: 1px solid #272a3a;
-    border-radius: 8px;
-    padding: 6px;
-    color: #fafafa;
-    selection-background-color: #242738;
+    background-color: #0a0a0d;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 4px;
+    color: #e4e4e7;
+    selection-background-color: #1f1f23;
+    selection-color: #ffffff;
 }
 
-/* === Studio Rack & Diagnostic Card === */
+/* === Studio Rack Enclosure === */
 #DiagnosticCard {
-    background-color: #0c0d12;
-    border: 1px solid #1c1d28;
-    border-radius: 14px;
-    padding: 14px 16px;
+    background-color: #0a0a0d;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 12px 14px;
 }
 #DiagnosticTitle {
     color: #ffffff;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
 }
 #DiagnosticSummary {
-    color: #8b8ea4;
+    color: #71717a;
     font-size: 11px;
     font-weight: 500;
+    letter-spacing: 0.5px;
 }
 
-/* === Buttons === */
+/* === Buttons (Industrial Terminal) === */
 QPushButton {
-    background-color: #13141c;
-    color: #f4f4f5;
-    border: 1px solid #242636;
-    border-radius: 8px;
-    padding: 8px 18px;
+    background-color: #0d0d11;
+    color: #e4e4e7;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 7px 16px;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
+    letter-spacing: 0.6px;
 }
 QPushButton:hover {
-    background-color: #1d1e2b;
-    border-color: #3b3e56;
+    background-color: #18181b;
+    border-color: #52525b;
+    color: #ffffff;
 }
 QPushButton:pressed {
-    background-color: #0c0d12;
+    background-color: #000000;
+    border-color: #71717a;
+}
+QPushButton:disabled {
+    background-color: #08080a;
+    color: #3f3f46;
+    border-color: #18181b;
 }
 
-/* === Hero Start Action Button === */
+/* === Hero Execute Button === */
 QPushButton#StartButton {
     background-color: #ffffff;
     color: #000000;
-    border: none;
-    border-radius: 22px;
-    font-size: 13px;
+    border: 1px solid #ffffff;
+    border-radius: 0px;
+    font-size: 12px;
     font-weight: 800;
-    letter-spacing: 0.4px;
-    padding: 12px 36px;
+    letter-spacing: 1.2px;
+    padding: 12px 32px;
     min-height: 20px;
-    min-width: 220px;
+    min-width: 240px;
 }
 QPushButton#StartButton:hover {
-    background-color: #eaeaea;
+    background-color: #e4e4e7;
+    border-color: #e4e4e7;
     color: #000000;
 }
 QPushButton#StartButton:pressed {
-    background-color: #d4d4d8;
+    background-color: #a1a1aa;
     color: #000000;
 }
 QPushButton#StartButton:disabled {
-    background-color: #1a1a22;
-    color: #52525b;
+    background-color: #0f0f13;
+    color: #3f3f46;
+    border-color: #1f1f23;
 }
 
 /* === Cancel Button === */
@@ -185,90 +210,86 @@ QPushButton#CancelButton {
     background-color: transparent;
     color: #ef4444;
     border: 1px solid #3f1d1d;
-    border-radius: 18px;
-    padding: 8px 20px;
+    border-radius: 0px;
+    padding: 8px 18px;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
 }
 QPushButton#CancelButton:hover {
     background-color: #2b1111;
-    border-color: #7f1d1d;
+    border-color: #ef4444;
 }
 
-/* === Progress Bar (Ultra Clean Line) === */
+/* === Progress Bar (Block Terminal Gauge) === */
 QProgressBar {
-    background-color: #13141c;
-    border: none;
-    border-radius: 3px;
-    height: 6px;
+    background-color: #0d0d11;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    height: 12px;
     text-align: center;
-    color: transparent;
+    color: #a1a1aa;
+    font-size: 10px;
+    font-weight: 700;
 }
 QProgressBar::chunk {
     background-color: #ffffff;
-    border-radius: 3px;
 }
 
 /* === Status Label === */
 #StatusLabel {
-    color: #8b8ea4;
+    color: #71717a;
     font-size: 11px;
-    font-weight: 500;
+    letter-spacing: 0.5px;
+    padding-top: 4px;
 }
 
-/* === Audio Player Section === */
+/* === Synchronized Audio Player === */
 #PlayerCard {
-    background-color: #0c0d12;
-    border: 1px solid #1c1d28;
-    border-radius: 14px;
-    padding: 14px 16px;
-}
-#PillBtnActive {
-    background-color: #ffffff;
-    color: #000000;
-    border: none;
-    border-radius: 7px;
-    padding: 7px 16px;
-    font-weight: 700;
-    font-size: 11px;
-    letter-spacing: 0.3px;
-}
-#PillBtnInactive {
-    background-color: #14151e;
-    color: #9497ab;
-    border: 1px solid #232536;
-    border-radius: 7px;
-    padding: 7px 16px;
-    font-weight: 600;
-    font-size: 11px;
-    letter-spacing: 0.3px;
-}
-#PillBtnInactive:hover {
-    background-color: #1e202e;
-    border-color: #3b3e58;
-    color: #ffffff;
+    background-color: #0a0a0d;
+    border: 1px solid #27272a;
+    border-radius: 0px;
+    padding: 10px 14px;
 }
 
-/* === Sliders (Timeline Scrubber) === */
+/* === Slider (Hardware Fader) === */
 QSlider::groove:horizontal {
     height: 4px;
-    background: #1c1d28;
-    border-radius: 2px;
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 0px;
 }
 QSlider::sub-page:horizontal {
-    background: #ffffff;
-    border-radius: 2px;
+    background-color: #52525b;
 }
 QSlider::handle:horizontal {
-    background: #ffffff;
-    border: 1px solid #272732;
-    width: 12px;
-    height: 12px;
-    margin: -4px 0;
-    border-radius: 6px;
+    background-color: #ffffff;
+    border: 1px solid #ffffff;
+    width: 8px;
+    margin-top: -5px;
+    margin-bottom: -5px;
+    border-radius: 0px;
 }
 QSlider::handle:horizontal:hover {
-    background: #ffffff;
-    transform: scale(1.2);
+    background-color: #e4e4e7;
+}
+
+/* === Scrollbars === */
+QScrollBar:vertical {
+    border: none;
+    background-color: #08080a;
+    width: 6px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background-color: #27272a;
+    min-height: 20px;
+    border-radius: 0px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: #52525b;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
 }
 """
