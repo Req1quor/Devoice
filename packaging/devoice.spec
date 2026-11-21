@@ -25,7 +25,9 @@ packages_to_collect = [
 ]
 
 binaries = []
-datas = []
+datas = [
+    ("devoice/assets", "devoice/assets"),
+]
 collected_hiddenimports = []
 
 for pkg in packages_to_collect:

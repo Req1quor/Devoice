@@ -4,13 +4,9 @@
 
 Offline vocal & instrumental stem separation for desktop.
 
-[![Release](https://img.shields.io/badge/release-v1.0.0-white?style=flat-square)](https://github.com/USERNAME/devoice/releases)
+[![Release](https://img.shields.io/badge/release-v1.0.0-white?style=flat-square)](https://github.com/Req1quor/Devoice/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPLv3-white?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-white?style=flat-square)](https://github.com/USERNAME/devoice/releases)
-
-<br/>
-
-<img src="docs/assets/screenshot.png" alt="Devoice" width="620" />
+[![Platform](https://img.shields.io/badge/platform-Windows-white?style=flat-square)](https://github.com/Req1quor/Devoice/releases)
 
 </div>
 
@@ -65,7 +61,7 @@ When isolating a vocal from a busy beat, raw separation can leave behind harsh f
 
 ### Windows Installer (Easiest)
 
-1. Download **`Devoice-Setup.exe`** from the [Releases](https://github.com/USERNAME/devoice/releases) page.
+1. Download **`Devoice-Setup.exe`** from the [Releases](https://github.com/Req1quor/Devoice/releases) page.
 2. Run the installer and launch Devoice from your desktop.
 
 ### Run from Source
@@ -74,8 +70,8 @@ Requires Python 3.10+ and an NVIDIA GPU (recommended, CUDA 12.1):
 
 ```bash
 # Clone the repository
-git clone https://github.com/USERNAME/devoice.git
-cd devoice
+git clone https://github.com/Req1quor/Devoice.git
+cd Devoice
 
 # Create virtual environment
 python -m venv venv
