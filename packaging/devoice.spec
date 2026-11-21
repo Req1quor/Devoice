@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
+ROOT_DIR = Path(SPECPATH).resolve().parent
+
 block_cipher = None
 
 # Collect all dynamic libraries, hidden imports, and assets for heavy dependencies
@@ -26,7 +28,7 @@ packages_to_collect = [
 
 binaries = []
 datas = [
-    ("devoice/assets", "devoice/assets"),
+    (str(ROOT_DIR / "devoice" / "assets"), "devoice/assets"),
 ]
 collected_hiddenimports = []
 
@@ -84,15 +86,15 @@ hiddenimports = list(set([
 ] + collected_hiddenimports))
 
 a = Analysis(
-    ["main.py"],
-    pathex=[],
+    [str(ROOT_DIR / "main.py")],
+    pathex=[str(ROOT_DIR)],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib"],
+    excludes=["tkinter", "matplotlib", "onnx.reference", "onnx.reference.ops"],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
