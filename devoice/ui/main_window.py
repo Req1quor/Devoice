@@ -136,6 +136,22 @@ class MainWindow(QMainWindow):
         diag_top.addWidget(self.diag_summary)
         diag_layout.addLayout(diag_top)
 
+        # Quick Presets (Recommended Studio vs Pure Raw Acapella)
+        presets_row = QHBoxLayout()
+        presets_row.setSpacing(8)
+        self.btn_preset_studio = QPushButton("✨ Recommandé (Studio)")
+        self.btn_preset_studio.setStyleSheet("font-size: 11px; font-weight: 600; padding: 4px 12px; background-color: #27272a; border: 1px solid #3f3f46; border-radius: 6px; color: #ffffff;")
+        self.btn_preset_studio.clicked.connect(self._apply_recommended_preset)
+
+        self.btn_preset_raw = QPushButton("💎 Son Brut (Pure BS-RoFormer)")
+        self.btn_preset_raw.setStyleSheet("font-size: 11px; font-weight: 500; padding: 4px 12px; background-color: #121215; border: 1px solid #27272a; border-radius: 6px; color: #a1a1aa;")
+        self.btn_preset_raw.clicked.connect(self._apply_raw_preset)
+
+        presets_row.addWidget(self.btn_preset_studio)
+        presets_row.addWidget(self.btn_preset_raw)
+        presets_row.addStretch()
+        diag_layout.addLayout(presets_row)
+
         # 1. Pitch-Tracked Sub-Bass
         row_sub = QVBoxLayout()
         row_sub.setSpacing(1)
@@ -346,6 +362,30 @@ class MainWindow(QMainWindow):
             self.lbl_debleed_reason,
         ):
             lbl.setStyle(lbl.style())
+
+    def _apply_raw_preset(self) -> None:
+        """Disable all DSP post-processing to obtain pure 100% BS-RoFormer neural separation."""
+        for cb in (
+            self.cb_subbass,
+            self.cb_deesser,
+            self.cb_dereverb,
+            self.cb_silence,
+            self.cb_leveler,
+            self.cb_true_peak,
+            self.cb_debleed,
+        ):
+            cb.setChecked(False)
+
+        self.btn_preset_raw.setStyleSheet("font-size: 11px; font-weight: 600; padding: 4px 12px; background-color: #27272a; border: 1px solid #3f3f46; border-radius: 6px; color: #ffffff;")
+        self.btn_preset_studio.setStyleSheet("font-size: 11px; font-weight: 500; padding: 4px 12px; background-color: #121215; border: 1px solid #27272a; border-radius: 6px; color: #a1a1aa;")
+
+    def _apply_recommended_preset(self) -> None:
+        """Apply acoustic diagnostic recommendations."""
+        if self._current_diagnostic:
+            self._update_diagnostic_ui(self._current_diagnostic)
+
+        self.btn_preset_studio.setStyleSheet("font-size: 11px; font-weight: 600; padding: 4px 12px; background-color: #27272a; border: 1px solid #3f3f46; border-radius: 6px; color: #ffffff;")
+        self.btn_preset_raw.setStyleSheet("font-size: 11px; font-weight: 500; padding: 4px 12px; background-color: #121215; border: 1px solid #27272a; border-radius: 6px; color: #a1a1aa;")
 
     # ── Logic & Signal Slots ────────────────────────────────────────────
 

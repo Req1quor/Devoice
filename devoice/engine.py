@@ -151,41 +151,34 @@ class SeparationEngine:
             self._init_separator()
 
         if progress_callback:
-            progress_callback(0.15, "Standardisation audio PCM…")
+            progress_callback(0.20, "Séparation en cours (calcul spectral haute précision)…")
 
-        clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
-        ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
-        conv_cmd = [
-            ffmpeg_bin,
-            "-y",
-            "-i",
-            str(audio_path),
-            "-ar",
-            "44100",
-            "-ac",
-            "2",
-            "-c:a",
-            "pcm_s16le",
-            str(clean_input),
-        ]
         try:
-            subprocess.run(conv_cmd, capture_output=True, check=True)
-            target_input = clean_input
+            output_files = self._separator.separate(str(audio_path))
         except Exception as exc:
-            logger.warning("Direct WAV conversion failed (%s), using original file", exc)
-            target_input = audio_path
-
-        if progress_callback:
-            progress_callback(0.25, "Séparation en cours (calcul spectral haute précision)…")
-
-        try:
-            output_files = self._separator.separate(str(target_input))
-        finally:
-            if clean_input.exists():
-                try:
-                    clean_input.unlink()
-                except Exception:
-                    pass
+            logger.warning("Séparation directe échouée (%s), conversion de secours en WAV 32-bit float sans perte", exc)
+            clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
+            ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+            conv_cmd = [
+                ffmpeg_bin,
+                "-y",
+                "-i",
+                str(audio_path),
+                "-ac",
+                "2",
+                "-c:a",
+                "pcm_f32le",
+                str(clean_input),
+            ]
+            subprocess.run(conv_cmd, capture_output=True, check=True)
+            try:
+                output_files = self._separator.separate(str(clean_input))
+            finally:
+                if clean_input.exists():
+                    try:
+                        clean_input.unlink()
+                    except Exception:
+                        pass
 
         if progress_callback:
             progress_callback(0.85, "Organisation des pistes audio…")

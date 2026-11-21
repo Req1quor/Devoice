@@ -67,7 +67,7 @@ def test_apply_true_peak_normalization(tmp_path: Path):
     wav_path = tmp_path / "peak_test.wav"
     sf.write(str(wav_path), signal.astype(np.float32), sr)
 
-    res = apply_true_peak_normalization(wav_path, target_dbfs=-1.0)
+    res = apply_true_peak_normalization(wav_path, target_dbfs=-1.0, allow_boost=True)
     norm_data, _ = sf.read(str(res))
     expected_peak = 10.0 ** (-1.0 / 20.0)
     assert np.isclose(np.max(np.abs(norm_data)), expected_peak, atol=0.01)

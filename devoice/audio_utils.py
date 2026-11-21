@@ -284,10 +284,14 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
             dynamic_spread_db = max(0.0, p85 - p15)
 
     # Rule: Vocal Leveler recommendation
-    # On busy productions, verses and choruses typically deviate by more than 5.5 dB
-    has_dynamic_imbalance = dynamic_spread_db >= 5.5 or rms_dbfs < -20.0
+    # On busy productions, verses and choruses typically deviate significantly in vocal level
+    is_heavy_compressed_mix = rms_dbfs >= -11.0 or sub_ratio >= 0.22
+    has_dynamic_imbalance = dynamic_spread_db >= 4.0 or is_heavy_compressed_mix
     if has_dynamic_imbalance:
-        leveler_reason = f"Écarts de dynamique détectés (±{dynamic_spread_db/2:.1f} dB) · Stabilisation uniforme conseillée"
+        if is_heavy_compressed_mix:
+            leveler_reason = f"Prod très dense & chargée (RMS: {rms_dbfs:.1f} dBFS) · Stabilisation uniforme conseillée"
+        else:
+            leveler_reason = f"Écarts de dynamique détectés (±{dynamic_spread_db/2:.1f} dB) · Stabilisation uniforme conseillée"
     else:
         leveler_reason = f"Niveau homogène (±{dynamic_spread_db/2:.1f} dB) · Préservation de la dynamique naturelle"
 
@@ -307,12 +311,12 @@ def analyze_audio_track(path: Path | str) -> AudioDiagnostic:
     else:
         sibilance_reason = f"Aigus doux ({sibilance_hz/1000:.1f} kHz) · Inactif pour préserver l'air"
 
-    # Rule 3: De-Reverb Studio
-    has_reverb = reverb_index >= 0.14
+    # Rule 3: De-Reverb Studio (reserved for genuine heavy reverberation, opt-in)
+    has_reverb = reverb_index >= 0.75
     if has_reverb:
-        reverb_reason = f"Réverbération/delay résiduel détecté · Assèchement cabine conseillé"
+        reverb_reason = f"Réverbération importante détectée · Assèchement cabine conseillé"
     else:
-        reverb_reason = f"Voix déjà sèche (Reverb index: {reverb_index:.2f}) · Timbre direct intact"
+        reverb_reason = f"Prise directe / sèche (Index: {reverb_index:.2f}) · Timbre naturel préservé"
 
     # Rule 4: Silence Purifier (Noise in pauses)
     has_noise = True  # Always beneficial for clean isolated acapellas
@@ -651,8 +655,12 @@ def apply_vocal_leveler(
     return path
 
 
-def apply_true_peak_normalization(audio_path: Path | str, target_dbfs: float = -1.0) -> Path:
-    """Normalize audio to True-Peak margin (-1.0 dBFS) to prevent DAW inter-sample clipping."""
+def apply_true_peak_normalization(
+    audio_path: Path | str,
+    target_dbfs: float = -1.0,
+    allow_boost: bool = False,
+) -> Path:
+    """True-Peak safety ceiling: clamps inter-sample clipping exceeding target_dbfs without amplifying bleed."""
     path = Path(audio_path)
     data, sr = sf.read(str(path), dtype="float32")
 
@@ -661,11 +669,11 @@ def apply_true_peak_normalization(audio_path: Path | str, target_dbfs: float = -
         return path
 
     target_linear = math.pow(10.0, target_dbfs / 20.0)
-    gain = target_linear / peak
-    normalized = data * gain
-
-    sf.write(str(path), normalized, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
-    logger.info("Applied True-Peak normalization (%.1f dBFS, gain %.2f) on %s", target_dbfs, gain, path.name)
+    if peak > target_linear or allow_boost:
+        gain = target_linear / peak
+        normalized = data * gain
+        sf.write(str(path), normalized, sr, subtype="PCM_16" if "16" in sf.info(str(path)).subtype else "FLOAT")
+        logger.info("Applied True-Peak ceiling (%.1f dBFS, gain %.2f) on %s", target_dbfs, gain, path.name)
     return path
 
 
