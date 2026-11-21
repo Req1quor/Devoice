@@ -16,3 +16,4 @@ PyQt6-Qt6>=6.5
 soundfile>=0.12
 pydub>=0.25
 numpy
+yt-dlp>=2025.0.0

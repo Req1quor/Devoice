@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -15,6 +17,7 @@ from PyQt6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QMainWindow,
     QProgressBar,
@@ -27,7 +30,8 @@ from devoice.audio_utils import AudioDiagnostic, analyze_audio_track
 from devoice.engine import ModelManager
 from devoice.ui.audio_player import AudioPreviewPlayer
 from devoice.ui.drop_zone import DropZone
-from devoice.worker import SeparationWorker
+from devoice.worker import SeparationWorker, YouTubeDownloadWorker
+from devoice.youtube import extract_youtube_url, is_youtube_url
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,7 @@ class MainWindow(QMainWindow):
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
         self.worker: SeparationWorker | None = None
+        self.yt_worker: Optional[YouTubeDownloadWorker] = None
         self._last_processed_file: Path | None = None
         self._current_diagnostic: Optional[AudioDiagnostic] = None
 
@@ -82,7 +87,27 @@ class MainWindow(QMainWindow):
         # ── (b) Drop Zone ─────────────────────────────────────────────────
         self.drop_zone = DropZone()
         self.drop_zone.files_dropped.connect(self._on_files_dropped)
+        self.drop_zone.youtube_url_dropped.connect(self._start_youtube_download)
         root.addWidget(self.drop_zone)
+
+        # ── YouTube Ingest Bar ────────────────────────────────────────────
+        self.yt_bar = QWidget()
+        yt_layout = QHBoxLayout(self.yt_bar)
+        yt_layout.setContentsMargins(0, 0, 0, 0)
+        yt_layout.setSpacing(8)
+
+        self.yt_input = QLineEdit()
+        self.yt_input.setObjectName("YouTubeInput")
+        self.yt_input.setPlaceholderText("Coller un lien YouTube (ex: https://youtu.be/...)")
+        self.yt_input.returnPressed.connect(self._on_youtube_download_clicked)
+        yt_layout.addWidget(self.yt_input, stretch=1)
+
+        self.yt_btn = QPushButton("Télécharger")
+        self.yt_btn.setObjectName("YouTubeButton")
+        self.yt_btn.clicked.connect(self._on_youtube_download_clicked)
+        yt_layout.addWidget(self.yt_btn)
+
+        root.addWidget(self.yt_bar)
 
         # ── (c) File Queue (if multiple) ──────────────────────────────────
         self.file_list = QListWidget()
@@ -233,6 +258,77 @@ class MainWindow(QMainWindow):
 
     # ── Logic & Signal Slots ────────────────────────────────────────────
 
+    def keyPressEvent(self, event) -> None:
+        if event.matches(QKeySequence.StandardKey.Paste):
+            cb_text = QApplication.clipboard().text().strip()
+            if is_youtube_url(cb_text):
+                self.yt_input.setText(cb_text)
+                self._start_youtube_download(cb_text)
+                return
+        super().keyPressEvent(event)
+
+    def _on_youtube_download_clicked(self) -> None:
+        url_text = self.yt_input.text().strip()
+        if not url_text:
+            # Check clipboard as a fast shortcut
+            cb = QApplication.clipboard().text().strip()
+            if is_youtube_url(cb):
+                url_text = cb
+                self.yt_input.setText(url_text)
+            else:
+                self.status_label.setText("Collez un lien YouTube valide")
+                self.yt_input.setFocus()
+                return
+
+        self._start_youtube_download(url_text)
+
+    def _start_youtube_download(self, url: str) -> None:
+        norm_url = extract_youtube_url(url)
+        if not norm_url:
+            self.status_label.setText("Lien YouTube non reconnu")
+            return
+
+        self.yt_input.setEnabled(False)
+        self.yt_btn.setEnabled(False)
+        self.yt_btn.setText("…")
+        self.drop_zone.set_downloading("Téléchargement YouTube…", "Connexion à YouTube…")
+        self.progress_bar.setValue(5)
+        self.progress_bar.setVisible(True)
+        self.cancel_btn.setVisible(True)
+        self.status_label.setText("Téléchargement YouTube en cours…")
+
+        self.yt_worker = YouTubeDownloadWorker(norm_url, output_dir=self.output_dir)
+        self.yt_worker.progress.connect(self._on_youtube_progress)
+        self.yt_worker.finished.connect(self._on_youtube_finished)
+        self.yt_worker.error.connect(self._on_youtube_error)
+        self.yt_worker.start()
+
+    def _on_youtube_progress(self, pct: int, msg: str) -> None:
+        self.progress_bar.setValue(pct)
+        self.status_label.setText(msg)
+        self.drop_zone.set_downloading(f"Téléchargement YouTube… {pct}%", msg)
+
+    def _on_youtube_finished(self, file_path: Path) -> None:
+        self.progress_bar.setVisible(False)
+        self.cancel_btn.setVisible(False)
+        self.yt_input.setEnabled(True)
+        self.yt_btn.setEnabled(True)
+        self.yt_btn.setText("Télécharger")
+        self.yt_input.clear()
+        # Automatically load and select the downloaded file for separation!
+        self._on_files_dropped([file_path])
+        self.status_label.setText(f"{file_path.name} téléchargé et prêt")
+
+    def _on_youtube_error(self, err_msg: str) -> None:
+        self.progress_bar.setVisible(False)
+        self.cancel_btn.setVisible(False)
+        self.yt_input.setEnabled(True)
+        self.yt_btn.setEnabled(True)
+        self.yt_btn.setText("Télécharger")
+        self.drop_zone.set_loaded_file(None)
+        short_err = err_msg.strip().split("\n")[-1]
+        self.status_label.setText(f"Erreur de téléchargement : {short_err}")
+
     def _on_files_dropped(self, paths: list[Path]) -> None:
         self.pending_files.extend(paths)
         primary_file = paths[0]
@@ -312,7 +408,16 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Séparation en cours…")
 
     def _cancel_separation(self) -> None:
-        if self.worker is not None:
+        if self.yt_worker is not None and self.yt_worker.isRunning():
+            self.yt_worker.cancel()
+            self.status_label.setText("Annulation du téléchargement…")
+            self.drop_zone.set_loaded_file(None)
+            self.yt_input.setEnabled(True)
+            self.yt_btn.setEnabled(True)
+            self.yt_btn.setText("Télécharger")
+            self.progress_bar.setVisible(False)
+            self.cancel_btn.setVisible(False)
+        elif self.worker is not None:
             self.worker.cancel()
             self.status_label.setText("Annulation…")
 

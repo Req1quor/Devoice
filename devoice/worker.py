@@ -221,3 +221,49 @@ class SeparationWorker(QThread):
                 success=False,
                 error_message=str(exc),
             )
+
+
+# ── YouTube Download Worker ──────────────────────────────────────────────────
+
+
+class YouTubeDownloadWorker(QThread):
+    """QThread for downloading audio from YouTube asynchronously."""
+
+    progress = pyqtSignal(int, str)
+    finished = pyqtSignal(Path)
+    error = pyqtSignal(str)
+
+    def __init__(
+        self,
+        url: str,
+        output_dir: Optional[Path | str] = None,
+        parent: Optional[Any] = None,
+    ) -> None:
+        super().__init__(parent)
+        self.url = url
+        self.output_dir = Path(output_dir) if output_dir else (Path.home() / "Downloads" / "Devoice")
+        self._cancelled = False
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    def run(self) -> None:
+        from devoice.youtube import download_youtube_audio
+
+        def callback(pct: int, msg: str) -> None:
+            if not self._cancelled:
+                self.progress.emit(pct, msg)
+
+        try:
+            downloaded = download_youtube_audio(
+                self.url,
+                self.output_dir,
+                progress_callback=callback,
+            )
+            if not self._cancelled:
+                self.finished.emit(downloaded)
+        except Exception as exc:
+            if not self._cancelled:
+                logger.exception("YouTube download failed: %s", exc)
+                self.error.emit(str(exc))
+

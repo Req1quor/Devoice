@@ -161,6 +161,44 @@ QPushButton#CancelButton:hover {
     border-color: #ef4444;
 }
 
+/* === YouTube Ingest Bar === */
+QLineEdit#YouTubeInput {
+    background-color: #111113;
+    color: #ffffff;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    selection-background-color: #27272a;
+    selection-color: #ffffff;
+}
+QLineEdit#YouTubeInput:focus {
+    border-color: #71717a;
+    background-color: #141417;
+}
+QPushButton#YouTubeButton {
+    background-color: #18181b;
+    color: #e4e4e7;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+}
+QPushButton#YouTubeButton:hover {
+    background-color: #27272a;
+    border-color: #52525b;
+    color: #ffffff;
+}
+QPushButton#YouTubeButton:pressed {
+    background-color: #09090b;
+}
+QPushButton#YouTubeButton:disabled {
+    color: #52525b;
+    border-color: #222225;
+    background-color: #141416;
+}
+
 /* === Pristine Monochrome Checkboxes === */
 QCheckBox {
     color: #e4e4e7;

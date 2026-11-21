@@ -4,6 +4,16 @@ import numpy as np
 import pytest
 import soundfile as sf
 from pathlib import Path
+from PyQt6.QtWidgets import QApplication
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Ensure a single QApplication instance exists for GUI tests."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app
 
 
 @pytest.fixture
