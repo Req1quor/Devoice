@@ -44,8 +44,8 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Devoice")
-        self.setMinimumSize(600, 480)
-        self.resize(640, 520)
+        self.setMinimumSize(660, 560)
+        self.resize(680, 580)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
@@ -123,7 +123,7 @@ class MainWindow(QMainWindow):
         # Divider
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setStyleSheet("color: #232736; background-color: #232736; max-height: 1px;")
+        divider.setStyleSheet("color: #222225; background-color: #222225; max-height: 1px;")
         card_layout.addWidget(divider)
 
         # Row 2: Post-processing toggle
@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
 
         self.btn_toggle_advanced = QPushButton("Options ▾")
         self.btn_toggle_advanced.setStyleSheet(
-            "background-color: transparent; border: 1px solid #262a38; color: #8a90a4; font-size: 11px; padding: 4px 10px;"
+            "background-color: transparent; border: 1px solid #27272a; color: #a1a1aa; font-size: 11px; padding: 4px 10px; border-radius: 6px;"
         )
         self.btn_toggle_advanced.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_toggle_advanced.clicked.connect(self._toggle_advanced_drawer)
@@ -149,8 +149,9 @@ class MainWindow(QMainWindow):
         self.drawer_widget = QWidget()
         self.drawer_widget.setVisible(False)
         drawer_layout = QGridLayout(self.drawer_widget)
-        drawer_layout.setContentsMargins(2, 6, 2, 2)
-        drawer_layout.setSpacing(8)
+        drawer_layout.setContentsMargins(4, 10, 4, 4)
+        drawer_layout.setHorizontalSpacing(16)
+        drawer_layout.setVerticalSpacing(10)
 
         self.chk_leveler = QCheckBox("Égalisation de volume")
         self.chk_silence = QCheckBox("Réduction du souffle")
@@ -158,7 +159,7 @@ class MainWindow(QMainWindow):
         self.chk_true_peak = QCheckBox("Limiteur anti-crête")
         self.chk_deesser = QCheckBox("De-Esser (sifflements)")
         self.chk_dereverb = QCheckBox("Dé-réverbération")
-        self.chk_debleed = QCheckBox("Atténuation des fuites")
+        self.chk_debleed = QCheckBox("Atténuation des fuites résiduelles")
 
         drawer_layout.addWidget(self.chk_leveler, 0, 0)
         drawer_layout.addWidget(self.chk_silence, 0, 1)
@@ -166,7 +167,7 @@ class MainWindow(QMainWindow):
         drawer_layout.addWidget(self.chk_true_peak, 1, 1)
         drawer_layout.addWidget(self.chk_deesser, 2, 0)
         drawer_layout.addWidget(self.chk_dereverb, 2, 1)
-        drawer_layout.addWidget(self.chk_debleed, 3, 0)
+        drawer_layout.addWidget(self.chk_debleed, 3, 0, 1, 2)
 
         card_layout.addWidget(self.drawer_widget)
 

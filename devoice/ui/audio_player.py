@@ -1,4 +1,4 @@
-"""Clean consistent audio preview player for Original, Vocals, and Instrumental."""
+"""High-end studio minimalist audio player in pure Noir & Blanc."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
 
 
 class AudioPreviewPlayer(QWidget):
-    """Synchronized player for stem preview."""
+    """Studio-grade minimalist player in Noir & Blanc."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -44,54 +44,66 @@ class AudioPreviewPlayer(QWidget):
         card = QFrame(self)
         card.setObjectName("PlayerCard")
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(14, 12, 14, 12)
-        card_layout.setSpacing(8)
+        card_layout.setContentsMargins(16, 14, 16, 14)
+        card_layout.setSpacing(10)
 
-        # Header with active track label and time
+        # Header row: Track stem & time
         top_row = QHBoxLayout()
-        self._label_track = QLabel("Lecture")
-        self._label_track.setStyleSheet("font-size: 11px; font-weight: 600; color: #8a90a4;")
+        self._label_track = QLabel("LECTURE : VOIX")
+        self._label_track.setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: #71717a; letter-spacing: 0.8px;"
+        )
 
         self._label_time = QLabel("00:00 / 00:00")
-        self._label_time.setStyleSheet("font-size: 11px; color: #555c70;")
+        self._label_time.setStyleSheet(
+            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #ffffff;"
+        )
 
         top_row.addWidget(self._label_track)
         top_row.addStretch()
         top_row.addWidget(self._label_time)
         card_layout.addLayout(top_row)
 
+        # Scrubber Slider (Full width)
+        self._slider = QSlider(Qt.Orientation.Horizontal)
+        self._slider.setRange(0, 0)
+        self._slider.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._slider.sliderMoved.connect(self._seek)
+        card_layout.addWidget(self._slider)
+
         # Controls row: Play button + Stem selectors
         controls_row = QHBoxLayout()
         controls_row.setSpacing(8)
 
         self._btn_play = QPushButton("Play")
-        self._btn_play.setFixedWidth(65)
+        self._btn_play.setObjectName("PlayButton")
+        self._btn_play.setFixedWidth(70)
+        self._btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_play.clicked.connect(self._toggle_play)
         controls_row.addWidget(self._btn_play)
 
+        controls_row.addSpacing(6)
+
         self._btn_vocals = QPushButton("Voix")
         self._btn_vocals.setObjectName("StemActive")
+        self._btn_vocals.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_vocals.clicked.connect(lambda: self._switch_stem("vocals"))
         controls_row.addWidget(self._btn_vocals)
 
         self._btn_instru = QPushButton("Instrumentale")
         self._btn_instru.setObjectName("StemInactive")
+        self._btn_instru.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_instru.clicked.connect(lambda: self._switch_stem("instru"))
         controls_row.addWidget(self._btn_instru)
 
         self._btn_orig = QPushButton("Original")
         self._btn_orig.setObjectName("StemInactive")
+        self._btn_orig.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_orig.clicked.connect(lambda: self._switch_stem("original"))
         controls_row.addWidget(self._btn_orig)
 
         controls_row.addStretch()
         card_layout.addLayout(controls_row)
-
-        # Scrubber Slider
-        self._slider = QSlider(Qt.Orientation.Horizontal)
-        self._slider.setRange(0, 0)
-        self._slider.sliderMoved.connect(self._seek)
-        card_layout.addWidget(self._slider)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -124,13 +136,13 @@ class AudioPreviewPlayer(QWidget):
         target_path: Optional[Path] = None
         if self._active_stem == "original":
             target_path = self._original_path
-            title = "Original"
+            title = "LECTURE : MIX ORIGINAL"
         elif self._active_stem == "vocals":
             target_path = self._vocals_path
-            title = "Voix isolée"
+            title = "LECTURE : VOIX ISOLÉE"
         else:
             target_path = self._instru_path
-            title = "Instrumentale"
+            title = "LECTURE : INSTRUMENTALE"
 
         if not target_path or not target_path.exists():
             return

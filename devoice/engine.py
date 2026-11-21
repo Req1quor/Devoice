@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+import math
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -150,35 +153,53 @@ class SeparationEngine:
         if self._separator is None:
             self._init_separator()
 
+        # Smooth real-time progress ticker during neural inference
+        ticker_stop = threading.Event()
+
+        def _ticker():
+            t0 = time.time()
+            while not ticker_stop.is_set():
+                elapsed = time.time() - t0
+                frac = 0.20 + 0.62 * (1.0 - math.exp(-elapsed / 14.0))
+                if progress_callback:
+                    progress_callback(frac, f"Séparation en cours… ({int(frac * 100)}%)")
+                ticker_stop.wait(0.35)
+
+        ticker_thread = threading.Thread(target=_ticker, daemon=True)
         if progress_callback:
-            progress_callback(0.20, "Séparation en cours…")
+            ticker_thread.start()
 
         try:
-            output_files = self._separator.separate(str(audio_path))
-        except Exception as exc:
-            logger.warning("Séparation directe échouée (%s), conversion de secours", exc)
-            clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
-            ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
-            conv_cmd = [
-                ffmpeg_bin,
-                "-y",
-                "-i",
-                str(audio_path),
-                "-ac",
-                "2",
-                "-c:a",
-                "pcm_f32le",
-                str(clean_input),
-            ]
-            subprocess.run(conv_cmd, capture_output=True, check=True)
             try:
-                output_files = self._separator.separate(str(clean_input))
-            finally:
-                if clean_input.exists():
-                    try:
-                        clean_input.unlink()
-                    except Exception:
-                        pass
+                output_files = self._separator.separate(str(audio_path))
+            except Exception as exc:
+                logger.warning("Séparation directe échouée (%s), conversion de secours", exc)
+                clean_input = self.output_dir / f"_clean_{audio_path.stem}.wav"
+                ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+                conv_cmd = [
+                    ffmpeg_bin,
+                    "-y",
+                    "-i",
+                    str(audio_path),
+                    "-ac",
+                    "2",
+                    "-c:a",
+                    "pcm_f32le",
+                    str(clean_input),
+                ]
+                subprocess.run(conv_cmd, capture_output=True, check=True)
+                try:
+                    output_files = self._separator.separate(str(clean_input))
+                finally:
+                    if clean_input.exists():
+                        try:
+                            clean_input.unlink()
+                        except Exception:
+                            pass
+        finally:
+            ticker_stop.set()
+            if ticker_thread.is_alive():
+                ticker_thread.join(timeout=1.0)
 
         if progress_callback:
             progress_callback(0.85, "Finalisation des pistes…")
