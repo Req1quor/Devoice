@@ -23,7 +23,7 @@ class ModelInfo:
 _REGISTRY: dict[str, ModelInfo] = {
     "bs_roformer": ModelInfo(
         name="bs_roformer",
-        display_name="[BS-ROFORMER] Studio Max (ViperX SDR 12.98)",
+        display_name="BS-RoFormer (Qualité Studio Max)",
         filename="model_bs_roformer_ep_317_sdr_12.9755.ckpt",
         description=(
             "Le modèle de référence mondial (ViperX). SDR ~12.98 dB. "
@@ -33,7 +33,7 @@ _REGISTRY: dict[str, ModelInfo] = {
     ),
     "mdx_net": ModelInfo(
         name="mdx_net",
-        display_name="[MDX-NET HQ3] Fast & Balanced",
+        display_name="MDX-Net HQ3 (Rapide)",
         filename="UVR-MDX-NET-Inst_HQ_3.onnx",
         description=(
             "Modèle MDX-Net haute fidélité (HQ3). Très propre, léger "

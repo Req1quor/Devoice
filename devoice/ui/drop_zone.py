@@ -1,4 +1,4 @@
-"""High-Contrast Monospace ASCII / Dither drag & drop widget for Devoice."""
+"""Modern sleek drag & drop widget for Devoice."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ SUPPORTED_FORMATS = {
 
 
 class DropZone(QFrame):
-    """ASCII / Dither hardware styled drop target with high contrast readability."""
+    """Clean modern drag & drop zone for audio files."""
 
     files_dropped = pyqtSignal(list)
 
@@ -32,75 +32,70 @@ class DropZone(QFrame):
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumHeight(150)
+        self.setMinimumHeight(135)
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(6)
 
-        self._banner_label = QLabel("[ ░░▒▒▓▓  DÉPOSER LE FICHIER AUDIO ICI  ▓▓▒▒░░ ]")
-        self._banner_label.setObjectName("DropZoneIcon")
-        self._banner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._banner_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: 1.2px;"
+        self._badge_label = QLabel("AUDIO")
+        self._badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._badge_label.setStyleSheet(
+            "font-size: 11px; font-weight: 700; color: #60a5fa; "
+            "background-color: #162035; padding: 3px 10px; border-radius: 6px;"
         )
 
-        self._text_label = QLabel(">> OU CLIQUER POUR PARCOURIR LE DISQUE <<")
-        self._text_label.setObjectName("DropZoneLabel")
-        self._text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._text_label.setWordWrap(True)
-        self._text_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px;"
-        )
+        self._title_label = QLabel("Déposez votre fichier audio ici")
+        self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title_label.setWordWrap(True)
+        self._title_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #ffffff;")
 
-        self._sub_label = QLabel("FORMATS SUPPORTÉS : WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
-        self._sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._sub_label.setWordWrap(True)
-        self._sub_label.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.8px;"
-        )
+        self._subtitle_label = QLabel("ou cliquez pour parcourir vos dossiers")
+        self._subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._subtitle_label.setStyleSheet("font-size: 12px; color: #94a3b8;")
 
-        layout.addWidget(self._banner_label)
-        layout.addWidget(self._text_label)
-        layout.addWidget(self._sub_label)
+        self._formats_label = QLabel("MP3 · WAV · FLAC · M4A · AIFF · OGG")
+        self._formats_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._formats_label.setStyleSheet("font-size: 11px; color: #475569;")
+
+        layout.addWidget(self._badge_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._title_label)
+        layout.addWidget(self._subtitle_label)
+        layout.addWidget(self._formats_label)
 
     def set_loaded_file(self, path: Path | None) -> None:
-        """Update drop zone appearance when a file is loaded."""
+        """Update appearance when a file is loaded."""
         if path is not None:
-            self._banner_label.setText("[+] FICHIER SOURCE RECONNU ET PRÊT")
-            self._banner_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 12px; font-weight: 800; color: #22c55e; letter-spacing: 1px;"
+            self._badge_label.setText("FICHIER PRÊT")
+            self._badge_label.setStyleSheet(
+                "font-size: 11px; font-weight: 700; color: #34d399; "
+                "background-color: #0d281e; padding: 3px 10px; border-radius: 6px;"
             )
-            self._text_label.setText(f">> {path.name.upper()} <<")
-            self._text_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 15px; font-weight: 900; color: #ffffff; letter-spacing: 0.8px;"
-            )
-            self._sub_label.setText("STATUS : CALIBRAGE SPECTRAL VALIDÉ · CLIQUER OU GLISSER POUR REMPLACER")
-            self._sub_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; color: #38bdf8; letter-spacing: 0.6px;"
-            )
+            self._title_label.setText(path.name)
+            self._title_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #ffffff;")
+            self._subtitle_label.setText("Cliquez ou glissez un autre fichier pour remplacer")
+            self._subtitle_label.setStyleSheet("font-size: 12px; color: #38bdf8;")
+            self._formats_label.setVisible(False)
             self.setProperty("loaded", "true")
         else:
-            self._banner_label.setText("[ ░░▒▒▓▓  DÉPOSER LE FICHIER AUDIO ICI  ▓▓▒▒░░ ]")
-            self._banner_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 14px; font-weight: 800; color: #ffffff; letter-spacing: 1.2px;"
+            self._badge_label.setText("AUDIO")
+            self._badge_label.setStyleSheet(
+                "font-size: 11px; font-weight: 700; color: #60a5fa; "
+                "background-color: #162035; padding: 3px 10px; border-radius: 6px;"
             )
-            self._text_label.setText(">> OU CLIQUER POUR PARCOURIR LE DISQUE <<")
-            self._text_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 13px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px;"
-            )
-            self._sub_label.setText("FORMATS SUPPORTÉS : WAV · MP3 · FLAC · M4A · AIFF · OGG · OPUS")
-            self._sub_label.setStyleSheet(
-                "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.8px;"
-            )
+            self._title_label.setText("Déposez votre fichier audio ici")
+            self._title_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #ffffff;")
+            self._subtitle_label.setText("ou cliquez pour parcourir vos dossiers")
+            self._subtitle_label.setStyleSheet("font-size: 12px; color: #94a3b8;")
+            self._formats_label.setVisible(True)
             self.setProperty("loaded", "false")
         self.setStyle(self.style())
 
     def dragEnterEvent(self, event) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setStyleSheet("#DropZone { border: 2px solid #38bdf8; background-color: #1a2234; }")
+            self.setStyleSheet("#DropZone { border-color: #3b82f6; background-color: #161e30; }")
         else:
             event.ignore()
 

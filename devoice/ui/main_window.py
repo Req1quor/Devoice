@@ -1,4 +1,4 @@
-"""Primary window for Devoice in high-contrast terminal ASCII / dither hardware DA."""
+"""Modern minimalist MainWindow for Devoice."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QFrame,
@@ -26,7 +27,6 @@ from devoice.audio_utils import AudioDiagnostic, analyze_audio_track
 from devoice.engine import ModelManager
 from devoice.ui.audio_player import AudioPreviewPlayer
 from devoice.ui.drop_zone import DropZone
-from devoice.ui.module_card import StudioModuleCard
 from devoice.worker import SeparationWorker
 
 logger = logging.getLogger(__name__)
@@ -39,42 +39,40 @@ OUTPUT_FORMATS = [
 
 
 class MainWindow(QMainWindow):
-    """Primary window assembling high-contrast ASCII / dither terminal UI and adaptive separation."""
+    """Clean, modern, and minimalist studio vocal separation desktop app."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("DEVOICE // NEURAL AUDIO SEPARATION ARCHITECTURE")
-        self.setMinimumSize(860, 780)
-        self.resize(940, 840)
+        self.setWindowTitle("Devoice — Séparation Vocale Haute Fidélité")
+        self.setMinimumSize(700, 600)
+        self.resize(760, 650)
 
         self.pending_files: List[Path] = []
         self.output_dir: Path | None = None
         self.worker: SeparationWorker | None = None
         self._last_processed_file: Path | None = None
         self._current_diagnostic: Optional[AudioDiagnostic] = None
-        self._is_pure_mode: bool = False
 
         self._build_ui()
         self._update_device_label()
-        self._reset_diagnostic_ui()
 
     def _build_ui(self) -> None:
         central = QWidget()
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(24, 20, 24, 20)
-        root.setSpacing(12)
+        root.setContentsMargins(28, 22, 28, 22)
+        root.setSpacing(14)
 
-        # ── (a) Top Terminal Banner ───────────────────────────────────────
+        # ── (a) Header ────────────────────────────────────────────────────
         header = QHBoxLayout()
 
         title_col = QVBoxLayout()
-        title_col.setSpacing(3)
-        self.title_label = QLabel("// DEVOICE [V2.4 / SOTA]")
+        title_col.setSpacing(2)
+        self.title_label = QLabel("DEVOICE")
         self.title_label.setObjectName("TitleLabel")
 
-        self.subtitle_label = QLabel(">> NEURAL AUDIO SEPARATION ARCHITECTURE // BS-ROFORMER & MDX-NET")
+        self.subtitle_label = QLabel("Séparation vocale & instrumentale de qualité studio")
         self.subtitle_label.setObjectName("SubtitleLabel")
 
         title_col.addWidget(self.title_label)
@@ -83,316 +81,178 @@ class MainWindow(QMainWindow):
         header.addLayout(title_col)
         header.addStretch()
 
-        self.device_label = QLabel("[ SYS: CHECKING... ]")
-        self.device_label.setObjectName("DeviceLabel")
+        self.device_label = QLabel("Détection matériel...")
+        self.device_label.setObjectName("DeviceBadge")
         header.addWidget(self.device_label, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         root.addLayout(header)
 
-        # ── (b) Hero Drop Zone (High-Contrast Dither Frame) ───────────────
+        # ── (b) Hero Drop Zone ───────────────────────────────────────────
         self.drop_zone = DropZone()
         self.drop_zone.files_dropped.connect(self._on_files_dropped)
         root.addWidget(self.drop_zone)
 
         # ── (c) File Queue (Visible only if multiple files) ──────────────
         self.file_list = QListWidget()
-        self.file_list.setMaximumHeight(75)
+        self.file_list.setMaximumHeight(65)
         self.file_list.setVisible(False)
         root.addWidget(self.file_list)
 
-        # ── (d) Studio Processing Rack / Mode Bay ────────────────────────
-        self.diag_card = QFrame()
-        self.diag_card.setObjectName("DiagnosticCard")
-        diag_layout = QVBoxLayout(self.diag_card)
-        diag_layout.setContentsMargins(14, 12, 14, 12)
-        diag_layout.setSpacing(10)
+        # ── (d) Clean Settings Card ──────────────────────────────────────
+        self.settings_card = QFrame()
+        self.settings_card.setObjectName("SettingsCard")
+        card_layout = QVBoxLayout(self.settings_card)
+        card_layout.setContentsMargins(16, 14, 16, 14)
+        card_layout.setSpacing(12)
 
-        # Mode Selector & Status Header
-        top_bar = QHBoxLayout()
-        top_bar.setSpacing(8)
+        # Row 1: Model & Format & Output
+        row1 = QHBoxLayout()
+        row1.setSpacing(10)
 
-        # High-Contrast Monospace Mode Switcher Tabs
-        self.btn_preset_pure = QPushButton("[ RAW SEPARATION (BRUT SOTA) ]")
-        self.btn_preset_pure.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_preset_pure.clicked.connect(self._apply_pure_mode)
-
-        self.btn_preset_studio = QPushButton("[ STUDIO RACK (CHAIN AUTO) ]")
-        self.btn_preset_studio.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_preset_studio.clicked.connect(self._apply_studio_mode)
-
-        top_bar.addWidget(self.btn_preset_pure)
-        top_bar.addWidget(self.btn_preset_studio)
-        top_bar.addStretch()
-
-        self.diag_summary = QLabel(":: EN ATTENTE D'UN FICHIER POUR CALIBRER LA CHAINE...")
-        self.diag_summary.setObjectName("DiagnosticSummary")
-        top_bar.addWidget(self.diag_summary)
-
-        diag_layout.addLayout(top_bar)
-
-        # 2-Column Grid of High-Contrast Sharp ASCII Hardware Rack Cards
-        self.grid_layout = QGridLayout()
-        self.grid_layout.setHorizontalSpacing(10)
-        self.grid_layout.setVerticalSpacing(8)
-
-        # 1. Pitch-Tracked Sub-Bass
-        self.card_subbass = StudioModuleCard(
-            title="COUPE-BAS SUB-BASS",
-            default_param="F0 VOCAL",
-            default_reason="Coupe le rumble sans rogner le coffre de la voix",
-        )
-        self.grid_layout.addWidget(self.card_subbass, 0, 0)
-
-        # 2. Vocal Rider / Dynamic Leveler
-        self.card_leveler = StudioModuleCard(
-            title="VOCAL RIDER STUDIO",
-            default_param="+-4.5 DB",
-            default_reason="Compense les trous de volume sur les prods chargees",
-        )
-        self.grid_layout.addWidget(self.card_leveler, 0, 1)
-
-        # 3. Dynamic De-Esser
-        self.card_deesser = StudioModuleCard(
-            title="DE-ESSER DYNAMIQUE",
-            default_param="5 - 9 KHZ",
-            default_reason="Adoucit les sifflantes agressives sans ternir l'air",
-        )
-        self.grid_layout.addWidget(self.card_deesser, 1, 0)
-
-        # 4. Silence Purifier
-        self.card_silence = StudioModuleCard(
-            title="PURIFICATEUR DE SILENCES",
-            default_param="CLEAN GATE",
-            default_reason="Supprime les residus d'instru et souffle dans les pauses",
-        )
-        self.grid_layout.addWidget(self.card_silence, 1, 1)
-
-        # 5. De-Reverb Studio
-        self.card_dereverb = StudioModuleCard(
-            title="DE-REVERB STUDIO",
-            default_param="DRY CABINE",
-            default_reason="Asseche la piece pour un timbre direct de cabine",
-        )
-        self.grid_layout.addWidget(self.card_dereverb, 2, 0)
-
-        # 6. True-Peak Normalization
-        self.card_true_peak = StudioModuleCard(
-            title="PLAFOND TRUE-PEAK",
-            default_param="-1.0 DBFS",
-            default_reason="Plafond de securite prevenant la saturation numerique",
-        )
-        self.grid_layout.addWidget(self.card_true_peak, 2, 1)
-
-        diag_layout.addLayout(self.grid_layout)
-
-        # Compact footer: Spectral de-bleed
-        bottom_strip = QHBoxLayout()
-        self.card_debleed = StudioModuleCard(
-            title="ANTI-BLEED SPECTRAL (AIGUS / CYMBALES)",
-            default_param="SOFT",
-            default_reason="Atténue les fuites résiduelles de batterie dans la voix",
-        )
-        self.card_debleed.setFixedHeight(64)
-        bottom_strip.addWidget(self.card_debleed)
-        diag_layout.addLayout(bottom_strip)
-
-        root.addWidget(self.diag_card)
-
-        # ── (e) Hardware Settings Bar (Model / Format / Export) ──────────
-        settings_row = QHBoxLayout()
-        settings_row.setSpacing(10)
-
-        lbl_engine = QLabel("[ ENGINE ] :")
-        lbl_engine.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 800; font-size: 11px; color: #f1f5f9;")
-        settings_row.addWidget(lbl_engine)
-
+        row1.addWidget(QLabel("Moteur :"))
         self.model_combo = QComboBox()
         for model in ModelManager.available_models():
             self.model_combo.addItem(model.display_name, model.name)
         self.model_combo.setCurrentIndex(0)
-        settings_row.addWidget(self.model_combo, stretch=2)
+        row1.addWidget(self.model_combo, stretch=3)
 
-        lbl_format = QLabel("[ FORMAT ] :")
-        lbl_format.setStyleSheet("font-family: 'Consolas', monospace; font-weight: 800; font-size: 11px; color: #f1f5f9;")
-        settings_row.addWidget(lbl_format)
-
+        row1.addWidget(QLabel("Format :"))
         self.format_combo = QComboBox()
         for display_name in OUTPUT_FORMATS:
             self.format_combo.addItem(display_name)
-        settings_row.addWidget(self.format_combo, stretch=1)
+        row1.addWidget(self.format_combo, stretch=1)
 
-        self.output_dir_btn = QPushButton("[ DOSSIER EXPORT... ]")
+        self.output_dir_btn = QPushButton("Dossier d'export")
         self.output_dir_btn.clicked.connect(self._select_output_dir)
-        settings_row.addWidget(self.output_dir_btn)
+        row1.addWidget(self.output_dir_btn)
 
-        root.addLayout(settings_row)
+        card_layout.addLayout(row1)
 
-        # ── (f) Hero Action Section (Start button / Progress) ────────────
+        # Divider
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet("color: #1e222f; background-color: #1e222f; max-height: 1px;")
+        card_layout.addWidget(divider)
+
+        # Row 2: Intelligent Auto Studio Enhancement Toggle
+        auto_row = QHBoxLayout()
+        auto_row.setSpacing(10)
+
+        auto_info = QVBoxLayout()
+        auto_info.setSpacing(2)
+
+        self.chk_auto_dsp = QCheckBox("Amélioration studio automatique")
+        self.chk_auto_dsp.setChecked(True)
+        self.chk_auto_dsp.setStyleSheet("font-size: 13px; font-weight: 700; color: #ffffff;")
+        self.chk_auto_dsp.toggled.connect(self._on_auto_dsp_toggled)
+
+        self.lbl_auto_sub = QLabel(
+            "Analyse le morceau pour éliminer le souffle, équilibrer le volume et prévenir la saturation."
+        )
+        self.lbl_auto_sub.setStyleSheet("font-size: 11px; color: #94a3b8;")
+
+        auto_info.addWidget(self.chk_auto_dsp)
+        auto_info.addWidget(self.lbl_auto_sub)
+        auto_row.addLayout(auto_info, stretch=1)
+
+        self.btn_toggle_advanced = QPushButton("Options avancées ▾")
+        self.btn_toggle_advanced.setStyleSheet(
+            "background-color: transparent; border: 1px solid #282f40; color: #94a3b8; font-size: 11px; padding: 5px 12px;"
+        )
+        self.btn_toggle_advanced.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_advanced.clicked.connect(self._toggle_advanced_drawer)
+        auto_row.addWidget(self.btn_toggle_advanced, alignment=Qt.AlignmentFlag.AlignVCenter)
+
+        card_layout.addLayout(auto_row)
+
+        # Collapsible Advanced Drawer (Hidden by default)
+        self.drawer_widget = QWidget()
+        self.drawer_widget.setVisible(False)
+        drawer_layout = QGridLayout(self.drawer_widget)
+        drawer_layout.setContentsMargins(4, 8, 4, 4)
+        drawer_layout.setSpacing(10)
+
+        self.chk_leveler = QCheckBox("Stabilisateur de volume (Vocal Rider)")
+        self.chk_silence = QCheckBox("Nettoyage du souffle dans les pauses")
+        self.chk_subbass = QCheckBox("Filtre coupe-bas anti-rumble")
+        self.chk_true_peak = QCheckBox("Plafond de sécurité anti-saturation")
+        self.chk_deesser = QCheckBox("Atténuation des sifflements (De-Esser)")
+        self.chk_dereverb = QCheckBox("Dé-réverbération (Assèchement)")
+        self.chk_debleed = QCheckBox("Anti-fuite de batterie (De-bleed)")
+
+        drawer_layout.addWidget(self.chk_leveler, 0, 0)
+        drawer_layout.addWidget(self.chk_silence, 0, 1)
+        drawer_layout.addWidget(self.chk_subbass, 1, 0)
+        drawer_layout.addWidget(self.chk_true_peak, 1, 1)
+        drawer_layout.addWidget(self.chk_deesser, 2, 0)
+        drawer_layout.addWidget(self.chk_dereverb, 2, 1)
+        drawer_layout.addWidget(self.chk_debleed, 3, 0)
+
+        card_layout.addWidget(self.drawer_widget)
+
+        root.addWidget(self.settings_card)
+
+        # ── (e) Hero Action Button ───────────────────────────────────────
         actions = QHBoxLayout()
-        actions.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        actions.setSpacing(14)
+        actions.setSpacing(12)
 
-        self.start_btn = QPushButton("[ >> EXECUTER LA SEPARATION << ]")
-        self.start_btn.setObjectName("StartButton")
+        self.start_btn = QPushButton("SÉPARER L'AUDIO")
+        self.start_btn.setObjectName("HeroButton")
         self.start_btn.setEnabled(False)
+        self.start_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.start_btn.clicked.connect(self._start_separation)
-        actions.addWidget(self.start_btn)
+        actions.addWidget(self.start_btn, stretch=1)
 
-        self.cancel_btn = QPushButton("[ ANNULER ]")
+        self.cancel_btn = QPushButton("Annuler")
         self.cancel_btn.setObjectName("CancelButton")
         self.cancel_btn.setVisible(False)
+        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.cancel_btn.clicked.connect(self._cancel_separation)
         actions.addWidget(self.cancel_btn)
 
         root.addLayout(actions)
 
+        # ── (f) Status & Progress ────────────────────────────────────────
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
         root.addWidget(self.progress_bar)
 
-        self.status_label = QLabel(">> EN ATTENTE D'UN MORCEAU...")
-        self.status_label.setObjectName("StatusLabel")
+        self.status_label = QLabel("Déposez un morceau pour démarrer")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.status_label.setStyleSheet("color: #94a3b8; font-size: 12px; font-weight: 500;")
         root.addWidget(self.status_label)
 
-        # ── (g) Synchronized Triple-Sync Audio Player (A/B/C) ────────────
+        # ── (g) Integrated Triple Audio Player ───────────────────────────
         self.audio_player = AudioPreviewPlayer()
         root.addWidget(self.audio_player)
 
         root.addStretch()
 
-        # Default to Studio Mode
-        self._apply_studio_mode()
+    # ── UI Drawer & Toggles ─────────────────────────────────────────────
 
-    # ── Mode Presets (Pure vs Studio) ───────────────────────────────────
+    def _toggle_advanced_drawer(self) -> None:
+        is_visible = self.drawer_widget.isVisible()
+        self.drawer_widget.setVisible(not is_visible)
+        self.btn_toggle_advanced.setText("Masquer les options ▴" if not is_visible else "Options avancées ▾")
 
-    def _apply_pure_mode(self) -> None:
-        """Switch to 100% Pure BS-RoFormer Neural separation (Zero DSP)."""
-        self._is_pure_mode = True
-        for card in (
-            self.card_subbass,
-            self.card_leveler,
-            self.card_deesser,
-            self.card_silence,
-            self.card_dereverb,
-            self.card_true_peak,
-            self.card_debleed,
-        ):
-            card.setChecked(False)
+    def _on_auto_dsp_toggled(self, checked: bool) -> None:
+        self.drawer_widget.setEnabled(checked)
+        if not checked:
+            self.lbl_auto_sub.setText("Mode brut : acapella 100% pure du modèle de neurones, aucun traitement.")
+        else:
+            self.lbl_auto_sub.setText("Analyse le morceau pour éliminer le souffle, équilibrer le volume et prévenir la saturation.")
+            if self._current_diagnostic:
+                self._apply_diagnostic_to_checkboxes(self._current_diagnostic)
 
-        self.btn_preset_pure.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 800; padding: 7px 16px; "
-            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1.5px solid #ffffff;"
-        )
-        self.btn_preset_studio.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 7px 16px; "
-            "background-color: #151824; color: #cbd5e1; border-radius: 0px; border: 1px solid #334155;"
-        )
-        self.diag_summary.setText(":: MODE BRUT ACTIF // ACAPELLA PURE DU RESEAU (ZERO DSP)")
-
-    def _apply_studio_mode(self) -> None:
-        """Switch to Studio Adaptive Post-Processing mode."""
-        self._is_pure_mode = False
-        if self._current_diagnostic:
-            self._update_diagnostic_ui(self._current_diagnostic)
-
-        self.btn_preset_studio.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 800; padding: 7px 16px; "
-            "background-color: #ffffff; color: #000000; border-radius: 0px; border: 1.5px solid #ffffff;"
-        )
-        self.btn_preset_pure.setStyleSheet(
-            "font-family: 'Consolas', monospace; font-size: 11px; font-weight: 700; padding: 7px 16px; "
-            "background-color: #151824; color: #cbd5e1; border-radius: 0px; border: 1px solid #334155;"
-        )
-
-    # ── Diagnostic & Dynamic Adaptations ────────────────────────────────
-
-    def _reset_diagnostic_ui(self) -> None:
-        """Reset the studio rack to idle state."""
-        self.drop_zone.set_loaded_file(None)
-        self.diag_summary.setText(":: EN ATTENTE D'UN FICHIER POUR CALIBRER LA CHAINE...")
-        for card in (
-            self.card_subbass,
-            self.card_leveler,
-            self.card_deesser,
-            self.card_silence,
-            self.card_dereverb,
-            self.card_true_peak,
-            self.card_debleed,
-        ):
-            card.setEnabled(False)
-            card.setChecked(False)
-
-    def _update_diagnostic_ui(self, diag: AudioDiagnostic) -> None:
-        """Dynamically configure studio module cards based on acoustic analysis."""
-        self._current_diagnostic = diag
-        v_short = "TENOR" if "tenor" in diag.voice_type.lower() else ("BARYTON" if "baryton" in diag.voice_type.lower() else ("ALTO/SOPRANO" if "alto" in diag.voice_type.lower() else "VOIX"))
-        f0_txt = f"F0:{int(diag.pitch_f0)}HZ" if diag.pitch_f0 > 0 else "F0:STD"
-        self.diag_summary.setText(f":: {v_short} [{f0_txt}] | SUB:{int(diag.sub_bass_ratio*100)}% | PEAK:{diag.peak_dbfs:+.1f}dBFS")
-
-        # 1. Pitch-Tracked Sub-Bass
-        self.card_subbass.setEnabled(True)
-        self.card_subbass.update_info(
-            param_text=f"{int(diag.adaptive_cutoff_hz)} HZ",
-            reason_text=diag.subbass_reason,
-            recommended=diag.has_subbass_rumble,
-        )
-        self.card_subbass.setChecked(diag.has_subbass_rumble and not self._is_pure_mode)
-
-        # 2. Vocal Rider / Dynamic Leveler
-        self.card_leveler.setEnabled(True)
-        self.card_leveler.update_info(
-            param_text="+-4.5 DB",
-            reason_text=diag.leveler_reason,
-            recommended=diag.has_dynamic_imbalance,
-        )
-        self.card_leveler.setChecked(diag.has_dynamic_imbalance and not self._is_pure_mode)
-
-        # 3. Dynamic De-Esser
-        self.card_deesser.setEnabled(True)
-        self.card_deesser.update_info(
-            param_text=f"{diag.sibilance_hz/1000:.1f} KHZ",
-            reason_text=diag.sibilance_reason,
-            recommended=diag.has_harsh_sibilance,
-        )
-        self.card_deesser.setChecked(diag.has_harsh_sibilance and not self._is_pure_mode)
-
-        # 4. Silence Purifier
-        self.card_silence.setEnabled(True)
-        self.card_silence.update_info(
-            param_text="-46 DB",
-            reason_text=diag.silence_reason,
-            recommended=diag.has_noise_in_pauses,
-        )
-        self.card_silence.setChecked(diag.has_noise_in_pauses and not self._is_pure_mode)
-
-        # 5. De-Reverb Studio
-        self.card_dereverb.setEnabled(True)
-        self.card_dereverb.update_info(
-            param_text="DRY",
-            reason_text=diag.reverb_reason,
-            recommended=diag.has_reverb,
-        )
-        self.card_dereverb.setChecked(diag.has_reverb and not self._is_pure_mode)
-
-        # 6. True-Peak Normalization Ceiling
-        self.card_true_peak.setEnabled(True)
-        self.card_true_peak.update_info(
-            param_text="-1.0 DBFS",
-            reason_text=diag.true_peak_reason,
-            recommended=diag.recommend_true_peak,
-        )
-        self.card_true_peak.setChecked(diag.recommend_true_peak and not self._is_pure_mode)
-
-        # 7. Spectral De-bleed
-        self.card_debleed.setEnabled(True)
-        self.card_debleed.update_info(
-            param_text="SOFT",
-            reason_text=diag.debleed_reason,
-            recommended=diag.recommend_debleed,
-        )
-        self.card_debleed.setChecked(diag.recommend_debleed and not self._is_pure_mode)
+    def _apply_diagnostic_to_checkboxes(self, diag: AudioDiagnostic) -> None:
+        self.chk_subbass.setChecked(diag.has_subbass_rumble)
+        self.chk_leveler.setChecked(diag.has_dynamic_imbalance)
+        self.chk_deesser.setChecked(diag.has_harsh_sibilance)
+        self.chk_silence.setChecked(diag.has_noise_in_pauses)
+        self.chk_dereverb.setChecked(diag.has_reverb)
+        self.chk_true_peak.setChecked(diag.recommend_true_peak)
+        self.chk_debleed.setChecked(diag.recommend_debleed)
 
     # ── Logic & Signal Slots ────────────────────────────────────────────
 
@@ -400,36 +260,37 @@ class MainWindow(QMainWindow):
         self.pending_files.extend(paths)
         primary_file = paths[0]
 
-        # Update hero card in drop zone
         self.drop_zone.set_loaded_file(primary_file)
 
         if len(self.pending_files) > 1:
             self.file_list.clear()
             for p in self.pending_files:
-                self.file_list.addItem(f">> {p.name}")
+                self.file_list.addItem(p.name)
             self.file_list.setVisible(True)
         else:
             self.file_list.setVisible(False)
 
         self.start_btn.setEnabled(True)
-        self.status_label.setText(f">> {primary_file.name} CHARGE ET ANALYSE")
+        self.status_label.setText(f"{primary_file.name} est prêt pour la séparation")
 
         try:
             diag = analyze_audio_track(primary_file)
-            self._update_diagnostic_ui(diag)
+            self._current_diagnostic = diag
+            if self.chk_auto_dsp.isChecked():
+                self._apply_diagnostic_to_checkboxes(diag)
         except Exception as exc:
             logger.warning("Could not run acoustic analysis on %s: %s", primary_file.name, exc)
 
     def _select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
-            "Selectionner le dossier d'export",
+            "Sélectionner le dossier d'export",
             str(self.output_dir) if self.output_dir else "",
         )
         if directory:
             self.output_dir = Path(directory)
-            self.output_dir_btn.setText(f"[ {self.output_dir.name.upper()} ]")
-            self.status_label.setText(f">> DOSSIER EXPORT : {self.output_dir.name}")
+            self.output_dir_btn.setText(self.output_dir.name)
+            self.status_label.setText(f"Dossier d'export : {self.output_dir.name}")
 
     def _start_separation(self) -> None:
         if not self.pending_files:
@@ -443,20 +304,22 @@ class MainWindow(QMainWindow):
         cutoff_hz = self._current_diagnostic.adaptive_cutoff_hz if self._current_diagnostic else 65.0
         sibilance_hz = self._current_diagnostic.sibilance_hz if self._current_diagnostic else 7200.0
 
+        use_dsp = self.chk_auto_dsp.isChecked()
+
         self.worker = SeparationWorker(
             files=list(self.pending_files),
             model_name=model_name,
             output_format=output_format,
             output_dir=self.output_dir,
-            subbass_filter=self.card_subbass.isChecked(),
+            subbass_filter=use_dsp and self.chk_subbass.isChecked(),
             subbass_cutoff=cutoff_hz,
-            deesser=self.card_deesser.isChecked(),
+            deesser=use_dsp and self.chk_deesser.isChecked(),
             deesser_freq=sibilance_hz,
-            dereverb=self.card_dereverb.isChecked(),
-            silence_purifier=self.card_silence.isChecked(),
-            vocal_leveler=self.card_leveler.isChecked(),
-            true_peak=self.card_true_peak.isChecked(),
-            spectral_debleed=self.card_debleed.isChecked(),
+            dereverb=use_dsp and self.chk_dereverb.isChecked(),
+            silence_purifier=use_dsp and self.chk_silence.isChecked(),
+            vocal_leveler=use_dsp and self.chk_leveler.isChecked(),
+            true_peak=use_dsp and self.chk_true_peak.isChecked(),
+            spectral_debleed=use_dsp and self.chk_debleed.isChecked(),
         )
         self.worker.progress.connect(self._on_progress)
         self.worker.file_completed.connect(self._on_file_completed)
@@ -469,19 +332,19 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
         self.cancel_btn.setVisible(True)
         self.start_btn.setEnabled(False)
-        self.status_label.setText(">> CALCUL SPECTRAL HAUTE PRECISION EN COURS...")
+        self.status_label.setText("Séparation audio en cours...")
 
     def _cancel_separation(self) -> None:
         if self.worker is not None:
             self.worker.cancel()
-            self.status_label.setText(">> ANNULATION EN COURS...")
+            self.status_label.setText("Annulation en cours...")
 
     def _on_progress(self, pct: int, msg: str) -> None:
         self.progress_bar.setValue(pct)
-        self.status_label.setText(f">> {msg}")
+        self.status_label.setText(msg)
 
     def _on_file_completed(self, filename: str, results: Dict[str, Any]) -> None:
-        self.status_label.setText(f"[OK] {filename} SEPARE AVEC SUCCES")
+        self.status_label.setText(f"{filename} séparé avec succès !")
         vocals_path = Path(results.get("vocals", ""))
         instru_path = Path(results.get("instru", "") or results.get("instrumental", ""))
 
@@ -493,7 +356,7 @@ class MainWindow(QMainWindow):
             )
 
     def _on_file_error(self, filename: str, error: str) -> None:
-        self.status_label.setText(f"[ERROR] {filename} : {error}")
+        self.status_label.setText(f"Erreur sur {filename} : {error}")
 
     def _on_all_completed(self) -> None:
         self.progress_bar.setVisible(False)
@@ -509,14 +372,14 @@ class MainWindow(QMainWindow):
 
             if torch.cuda.is_available():
                 gpu_name = torch.cuda.get_device_name(0)
-                self.device_label.setText(f"[ SYS: CUDA // {gpu_name} ]")
+                self.device_label.setText(gpu_name)
                 self.device_label.setStyleSheet(
-                    "font-family: 'Consolas', monospace; color: #4ade80; border: 1px solid #166534; background-color: #0c2518; font-weight: 700;"
+                    "background-color: #0d281e; color: #34d399; border: 1px solid #166534; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
                 )
             else:
-                self.device_label.setText("[ SYS: CPU ]")
+                self.device_label.setText("CPU")
                 self.device_label.setStyleSheet(
-                    "font-family: 'Consolas', monospace; color: #cbd5e1; border: 1px solid #334155; background-color: #151824; font-weight: 700;"
+                    "background-color: #1e2433; color: #94a3b8; border: 1px solid #2d374d; font-weight: 600; padding: 4px 12px; border-radius: 12px;"
                 )
         except Exception:
-            self.device_label.setText("[ SYS: CPU ]")
+            self.device_label.setText("CPU")
