@@ -2,161 +2,94 @@
 
 # Devoice
 
-**Studio-grade neural audio source separation and acoustic DSP workstation**
+Offline vocal & instrumental stem separation for desktop.
 
-[![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-18181b?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B%20CUDA%2012.1-18181b?style=flat-square&logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-18181b?style=flat-square)](LICENSE)
-[![Code style: ruff](https://img.shields.io/badge/Code%20Style-Ruff-18181b?style=flat-square&logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
-[![Tests: 43 passed](https://img.shields.io/badge/Tests-43%20Passed-18181b?style=flat-square)](tests/)
+[![Release](https://img.shields.io/badge/release-v1.0.0-white?style=flat-square)](https://github.com/USERNAME/devoice/releases)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPLv3-white?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-white?style=flat-square)](https://github.com/USERNAME/devoice/releases)
+
+<br/>
+
+<img src="docs/assets/screenshot.png" alt="Devoice" width="620" />
 
 </div>
 
 ---
 
-## Overview
+## What is Devoice?
 
-**Devoice** is an offline desktop workstation designed for mix engineers, beatmakers, and vocalists who require pristine vocal isolation and stem separation. 
+Devoice is a desktop app for Windows that separates vocals and instrumentals locally on your machine.
 
-Unlike conventional tools that produce dry acapellas with residual phase artifacts, background bleed, and dynamic fluctuations, Devoice pairs deep neural separation architectures (**BS-RoFormer** and **MDX-Net**) with an automated, in-memory **Studio DSP Rack**.
-
-Once separated, stems can be **reprocessed in real time** (~100 ms) directly from the cached dry signal, allowing users to fine-tune vocal riding, de-essing, de-reverberation, and noise gating without re-running heavy neural inference.
+Instead of uploading tracks to cloud services, it runs neural models directly on your GPU (or CPU) and includes built-in audio cleanup tools to handle bleed, volume drops, and harsh frequencies.
 
 ---
 
-## Key Capabilities
+## Features
 
-- **State-of-the-Art Separation** : Built on BS-RoFormer (ViperX SDR 12.98) and MDX-Net, offering exceptional vocal and instrumental isolation even on dense, heavily compressed productions.
-- **Real-Time DSP Reprocessing** : Adjust filters, vocal leveler, or de-esser on isolated stems with sub-second feedback. Dry stems remain immutable in memory while the output updates live in the playback preview.
-- **Integrated YouTube Ingestion** : Paste any video or track URL (or drag-and-drop from your browser) to extract high-bitrate audio and prepare it for separation in one click.
-- **Lossless 32-bit Float Processing** : Internal audio pipelines operate in continuous IEEE 32-bit float NumPy arrays, avoiding quantization distortion and inter-sample clipping before final export.
-- **Zero Cloud Dependency** : All model inference, DSP calculations, and file rendering run 100% locally on your GPU (NVIDIA CUDA) or CPU. Your audio never leaves your machine.
-- **Monochrome Interface** : A distraction-free, high-contrast desktop GUI built with PyQt6.
-
----
-
-## Signal Flow Architecture
-
-```
-[ Input Audio File / YouTube Stream ]
-                  │
-                  ▼
-   [ Neural Separation Engine ] ──► (BS-RoFormer / MDX-Net)
-                  │
-        ┌─────────┴─────────┐
-        ▼                   ▼
- [ Raw Instrumental ]  [ Raw Vocals (Cached Dry) ]
-        │                   │
-        │        ┌──────────┴──────────────────────────┐
-        │        ▼                                     ▼
-        │   [ Sub-Bass Highpass ]              (Real-Time DSP Tuning)
-        │   [ Dynamic Lookahead Leveler ]              │
-        │   [ Dynamic De-Esser (5-9 kHz) ]             │
-        │   [ Downward Silence Purifier ]              │
-        │   [ Energy Envelope De-Reverb ]              │
-        │   [ Inter-Stem Spectral De-Bleed ]           │
-        │   [ ITU-R BS.1770 True-Peak Limiter ]        │
-        │        └──────────┬──────────────────────────┘
-        │                   ▼
-        └─────────────► [ Master Stems ] ──► [ Studio Preview Player & Export ]
-```
+- **BS-RoFormer & MDX-Net engines** : Clean stem separation powered by the highest scoring open weights.
+- **Live post-processing** : Adjust the de-esser, vocal rider, or noise gate *after* separation without having to re-run the AI model.
+- **YouTube link support** : Paste a YouTube URL (or drag it from your browser) to download and load the track instantly.
+- **32-bit float audio engine** : All audio processing is done in lossless float32 to prevent distortion and clipping before export.
+- **100% offline & private** : Your files stay on your computer. No accounts, no subscriptions, no limits.
+- **Clean dark UI** : Minimalist black & white interface designed to stay out of the way.
 
 ---
 
-## Performance Benchmark
+## Audio Benchmark
 
-Signal-to-Distortion Ratio (SDR) on standard vocal isolation benchmarks (higher is better):
+Signal-to-Distortion Ratio (SDR) measured on vocal test datasets:
 
-| Architecture | Model | Vocal SDR (dB) | Artifact Suppression |
-| :--- | :--- | :---: | :---: |
-| **BS-RoFormer** | **ViperX SDR 12.98 (Default)** | **12.98 dB** | **Industry Lead** |
-| MDX-Net | MDX23C-8KFFT | 10.87 dB | High |
-| Demucs v4 | HTDemucs-FT | 9.20 dB | Moderate |
-| Spleeter | 2-Stems | 6.30 dB | Low (Audible Phase Bleed) |
-
----
-
-## Studio DSP Modules
-
-| Module | Algorithm | Function |
-| :--- | :--- | :--- |
-| **Vocal Rider** | Dynamic lookahead RMS leveling | Stabilizes vocal dynamics and levels out drops in volume caused by loud instrumentals. |
-| **Dynamic De-Esser** | Spectral band splitting (5–9 kHz) | Attenuates harsh sibilants without dulling vocal brightness or high-end air. |
-| **Silence Purifier** | Soft-knee downward expander | Silences instrument bleed, headphone spill, and background noise during vocal pauses. |
-| **De-Reverb** | Decay envelope suppression | Tames room reflections and wet tails to yield a dry, direct cabin vocal. |
-| **Sub-Bass Filter** | 2nd-order Butterworth highpass | Filters sub-audible rumble calibrated to the fundamental vocal frequency (F0). |
-| **Spectral De-Bleed** | Cross-stem phase attenuation | Attenuates residual cymbal and high-frequency spill between vocal and instrumental tracks. |
-| **True-Peak Limiter** | Oversampled peak ceiling (-1.0 dBFS) | Prevents digital inter-sample clipping during lossy MP3/AAC compression or DAC playback. |
+| Model | Vocal SDR | Quality |
+| :--- | :---: | :---: |
+| **BS-RoFormer (ViperX)** | **12.98 dB** | Cleanest vocal isolation, minimal artifacts |
+| MDX-Net (MDX23C) | 10.87 dB | Good separation, very fast |
+| Demucs v4 (HTDemucs) | 9.20 dB | Standard baseline |
+| Spleeter | 6.30 dB | Noticeable bleed and phase issues |
 
 ---
 
-## Installation
+## Built-in Audio Processing
 
-### Binary Release (Recommended for End Users)
+When isolating a vocal from a busy beat, raw separation can leave behind harsh frequencies, volume dips, or room reflections. Devoice lets you toggle these filters on or off at any time:
 
-1. Download the latest `Devoice-Setup.exe` from the [Releases](https://github.com/USERNAME/devoice/releases) page.
-2. Run the installer and launch **Devoice** from your desktop or start menu.
+- **Volume leveler** : Keeps the vocal gain consistent throughout the track, especially on loud productions where the voice drops in volume.
+- **De-esser** : Tames harsh sibilance ("S" sounds) between 5 kHz and 9 kHz without muffling the rest of the voice.
+- **Silence purifier** : A soft downward expander that removes residual beat bleed and hiss during vocal pauses.
+- **De-reverb** : Dries up room echo on wet vocal recordings.
+- **Low-cut filter** : Cuts sub-bass rumble below the fundamental frequency of the voice.
+- **True-peak limiter** : Caps signal peaks at -1.0 dBFS to prevent inter-sample clipping on speakers and headphones.
 
-### Building from Source
+---
 
-**Prerequisites:** Python 3.10+, Git, and an NVIDIA GPU with CUDA drivers (optional, CPU fallback supported).
+## Getting Started
+
+### Windows Installer (Easiest)
+
+1. Download **`Devoice-Setup.exe`** from the [Releases](https://github.com/USERNAME/devoice/releases) page.
+2. Run the installer and launch Devoice from your desktop.
+
+### Run from Source
+
+Requires Python 3.10+ and an NVIDIA GPU (recommended, CUDA 12.1):
 
 ```bash
 # Clone the repository
 git clone https://github.com/USERNAME/devoice.git
 cd devoice
 
-# Create and activate virtual environment
+# Create virtual environment
 python -m venv venv
-# Windows:
 venv\Scripts\activate
-# Linux / macOS:
-source venv/bin/activate
 
-# Install dependencies with CUDA acceleration
-pip install --upgrade pip
+# Install dependencies
 pip install -r requirements.txt
 
-# Launch application
+# Run the app
 python main.py
 ```
 
 ---
 
-## Development & Verification
+## License
 
-Devoice adheres to strict quality assurance standards. The test suite includes full integration coverage, extreme boundary DSP checks, and concurrency verification.
-
-```bash
-# Run the test suite (43 automated tests)
-pytest tests/ -v
-
-# Run linting and code quality checks
-ruff check devoice/ tests/
-```
-
----
-
-## Project Structure
-
-```
-devoice/
-├── audio_utils.py       # Acoustic diagnostics, NumPy DSP rack, and format writers
-├── config.py            # Global constants and supported format definitions
-├── engine.py            # Neural separation engine, model registry, and stem cache
-├── worker.py            # Background QThread workers (Separation, YouTube, Reprocess)
-├── youtube.py           # yt-dlp stream extraction and static-ffmpeg audio pipeline
-└── ui/
-    ├── audio_player.py  # Studio preview player with dynamic stem hot-swapping
-    ├── drop_zone.py     # Minimalist drag & drop and URL ingestion widget
-    ├── main_window.py   # Primary application window, controls, and event wiring
-    └── styles.py        # Cohesive dark monochrome design system (Noir & Blanc)
-```
-
----
-
-## License & Credits
-
-- Distributed under the [GNU General Public License v3.0 (GPLv3)](LICENSE).
-- Core neural models courtesy of the **BS-RoFormer** and **MDX-Net** research communities.
-- Audio extraction powered by [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [static-ffmpeg](https://github.com/zackees/static-ffmpeg).
+GNU General Public License v3.0 (GPLv3). See [LICENSE](LICENSE) for details.
