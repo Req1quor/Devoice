@@ -26,6 +26,7 @@ from devoice.audio_utils import (
     write_audio_file,
 )
 from devoice.model_manager import ModelManager
+from devoice.runtime_manager import get_models_dir
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,8 @@ class SeparationEngine:
         self.true_peak = true_peak
         self.spectral_debleed = spectral_debleed
 
-        # Model cache in user appdata/home
-        self.cache_dir = Path.home() / ".cache" / "devoice" / "models"
+        # Model cache in user chosen drive (preserves C: disk space)
+        self.cache_dir = get_models_dir()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         self._separator = None

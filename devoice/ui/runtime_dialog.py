@@ -7,15 +7,18 @@ with a live progress bar and status readout in pure Noir & Blanc style.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
-from PyQt6.QtCore import QThread, Qt, pyqtSignal
+from PyQt6.QtCore import QSettings, QThread, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath
 from PyQt6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -40,9 +43,10 @@ class RuntimeDownloadWorker(QThread):
     finished_success = pyqtSignal()
     finished_error = pyqtSignal(str)
 
-    def __init__(self, flavor: str, parent: QWidget | None = None) -> None:
+    def __init__(self, flavor: str, target_dir: Path | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.flavor = flavor
+        self.target_dir = target_dir or get_runtime_dir()
         self._is_cancelled = False
 
     def cancel(self) -> None:
@@ -50,11 +54,11 @@ class RuntimeDownloadWorker(QThread):
 
     def run(self) -> None:
         try:
-            runtime_dir = get_runtime_dir()
+            runtime_dir = self.target_dir
             runtime_dir.mkdir(parents=True, exist_ok=True)
 
             # Official PyTorch Windows wheels (standard zip archives)
-            # Extracted directly into %LOCALAPPDATA%\Devoice\runtime
+            # Extracted directly into the user chosen runtime directory
             if self.flavor == "cuda":
                 # PyTorch 2.5.1 + CUDA 12.1 for Windows
                 url = "https://download.pytorch.org/whl/cu121/torch-2.5.1%2Bcu121-cp39-cp39-win_amd64.whl"
@@ -108,7 +112,7 @@ class RuntimeSetupDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Devoice — Configuration Initiale")
-        self.setFixedSize(540, 390)
+        self.setFixedSize(560, 470)
         self.setStyleSheet("background-color: #09090B; color: #F4F4F5; font-family: 'Segoe UI', sans-serif;")
 
         self._worker: RuntimeDownloadWorker | None = None
@@ -123,10 +127,31 @@ class RuntimeSetupDialog(QDialog):
             border_color=(39, 39, 42),
         )
 
+    def _get_disk_space_text(self, path_str: str) -> str:
+        try:
+            p = Path(path_str)
+            anchor = p.anchor if p.anchor else "C:\\"
+            _, _, free = shutil.disk_usage(anchor)
+            free_gb = free / (1024**3)
+            drive_letter = p.drive or "C:"
+            return f"Emplacement : {drive_letter} ({free_gb:.1f} Go d'espace libre disponible)"
+        except Exception:
+            return ""
+
+    def _on_browse_location(self) -> None:
+        current = self.path_edit.text()
+        chosen = QFileDialog.getExistingDirectory(self, "Choisir le dossier de stockage Devoice", current)
+        if chosen:
+            chosen_path = Path(chosen)
+            if chosen_path.name.lower() != "runtime":
+                chosen_path = chosen_path / "runtime"
+            self.path_edit.setText(str(chosen_path))
+            self.disk_info_label.setText(self._get_disk_space_text(str(chosen_path)))
+
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
 
         # Header Title
         title_label = QLabel("DEVOICE")
@@ -150,7 +175,7 @@ class RuntimeSetupDialog(QDialog):
         badge_layout.addWidget(badge_text)
 
         desc_text = QLabel(
-            "L'installateur Devoice a été optimisé à moins de 80 Mo. "
+            "L'installateur Devoice a été optimisé à ~130 Mo. "
             "Pour démarrer la séparation audio, choisissez le pack d'exécution adapté à votre PC :"
         )
         desc_text.setWordWrap(True)
@@ -172,6 +197,37 @@ class RuntimeSetupDialog(QDialog):
 
         layout.addWidget(self.radio_cuda)
         layout.addWidget(self.radio_cpu)
+
+        # Location selection card (ensures user drive choice is respected)
+        loc_frame = QFrame()
+        loc_frame.setStyleSheet("background-color: #111114; border: 1px solid #27272A; border-radius: 8px; padding: 10px 12px;")
+        loc_layout = QVBoxLayout(loc_frame)
+        loc_layout.setSpacing(6)
+
+        loc_label = QLabel("Emplacement de stockage du moteur et des modèles IA :")
+        loc_label.setStyleSheet("font-size: 11.5px; font-weight: 600; color: #FFFFFF;")
+        loc_layout.addWidget(loc_label)
+
+        path_row = QHBoxLayout()
+        self.path_edit = QLineEdit(str(get_runtime_dir()))
+        self.path_edit.setStyleSheet("background-color: #18181B; border: 1px solid #3F3F46; border-radius: 4px; padding: 6px 10px; color: #F4F4F5; font-size: 11px;")
+        self.path_edit.setReadOnly(True)
+
+        self.btn_browse = QPushButton("Parcourir…")
+        self.btn_browse.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_browse.setStyleSheet(
+            "QPushButton { background-color: #27272A; color: #FFFFFF; border: 1px solid #3F3F46; border-radius: 4px; padding: 6px 12px; font-size: 11px; font-weight: 600; }"
+            "QPushButton:hover { background-color: #3F3F46; }"
+        )
+        self.btn_browse.clicked.connect(self._on_browse_location)
+        path_row.addWidget(self.path_edit)
+        path_row.addWidget(self.btn_browse)
+        loc_layout.addLayout(path_row)
+
+        self.disk_info_label = QLabel(self._get_disk_space_text(self.path_edit.text()))
+        self.disk_info_label.setStyleSheet("font-size: 10.5px; color: #71717A;")
+        loc_layout.addWidget(self.disk_info_label)
+        layout.addWidget(loc_frame)
 
         # Progress bar
         self.progress_bar = QProgressBar()
@@ -209,14 +265,21 @@ class RuntimeSetupDialog(QDialog):
 
     def _on_start_download(self) -> None:
         self.btn_download.setEnabled(False)
+        self.btn_browse.setEnabled(False)
         self.radio_cuda.setEnabled(False)
         self.radio_cpu.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(5)
         self.status_label.setText("Démarrage du téléchargement…")
 
+        target_dir = Path(self.path_edit.text())
+        # Save choice to persistent registry
+        settings = QSettings("Devoice", "Devoice")
+        settings.setValue("runtime_dir", str(target_dir))
+        settings.setValue("models_dir", str(target_dir.parent / "models"))
+
         flavor = "cuda" if self.radio_cuda.isChecked() else "cpu"
-        self._worker = RuntimeDownloadWorker(flavor=flavor, parent=self)
+        self._worker = RuntimeDownloadWorker(flavor=flavor, target_dir=target_dir, parent=self)
         self._worker.progress_updated.connect(self._on_progress)
         self._worker.finished_success.connect(self._on_success)
         self._worker.finished_error.connect(self._on_error)
@@ -233,6 +296,7 @@ class RuntimeSetupDialog(QDialog):
 
     def _on_error(self, err_msg: str) -> None:
         self.btn_download.setEnabled(True)
+        self.btn_browse.setEnabled(True)
         self.radio_cuda.setEnabled(True)
         self.radio_cpu.setEnabled(True)
         self.status_label.setText(f"Erreur : {err_msg}")

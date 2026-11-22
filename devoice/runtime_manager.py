@@ -22,8 +22,74 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def get_app_dir() -> Path:
+    """Return the base directory of the Devoice application."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).resolve().parent.parent
+
+
+def is_directory_writable(path: Path) -> bool:
+    """Check if the given directory can be created and written to."""
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        test_file = path / ".write_test"
+        test_file.write_text("ok")
+        test_file.unlink()
+        return True
+    except Exception:
+        return False
+
+
 def get_runtime_dir() -> Path:
-    """Return the persistent directory where the AI audio runtime is installed."""
+    """Return the persistent directory where the AI audio runtime is installed.
+
+    Respects the drive where the user installed Devoice (e.g. E: drive) to avoid
+    filling up the C: system disk with CUDA and PyTorch.
+
+    Order of resolution:
+    1. Saved path in Windows registry / QSettings ("runtime_dir").
+    2. Candidate next to the application (e.g. E:\\Programmes\\Devoice\\runtime).
+    3. Dedicated folder on the application drive (e.g. E:\\Devoice\\runtime).
+    4. Fallback to %LOCALAPPDATA%\\Devoice\\runtime if no other drive is writable.
+    """
+    # 1. User setting from QSettings registry
+    try:
+        from PyQt6.QtCore import QSettings
+
+        settings = QSettings("Devoice", "Devoice")
+        saved = settings.value("runtime_dir", "")
+        if saved:
+            p = Path(saved)
+            if p.exists() and (p / "torch").exists():
+                return p
+    except Exception:
+        pass
+
+    app_dir = get_app_dir()
+
+    # 2. Check if runtime already exists next to the app
+    cand_app = app_dir / "runtime"
+    if cand_app.exists() and (cand_app / "torch").exists():
+        return cand_app
+
+    # 3. Check if installed on a non-C drive (e.g. E:\Devoice\runtime)
+    if app_dir.drive and app_dir.drive.upper() != "C:":
+        cand_drive = Path(app_dir.drive + "\\") / "Devoice" / "runtime"
+        if cand_drive.exists() and (cand_drive / "torch").exists():
+            return cand_drive
+
+    # 4. If nothing exists yet, prefer the application directory if writable
+    if is_directory_writable(cand_app):
+        return cand_app
+
+    # 5. If app_dir was admin-protected on E:, use E:\Devoice\runtime
+    if app_dir.drive and app_dir.drive.upper() != "C:":
+        cand_drive = Path(app_dir.drive + "\\") / "Devoice" / "runtime"
+        if is_directory_writable(cand_drive):
+            return cand_drive
+
+    # 6. Fallback to LocalAppData
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA")
         if base:
@@ -31,13 +97,56 @@ def get_runtime_dir() -> Path:
     return Path.home() / ".cache" / "devoice" / "runtime"
 
 
+def get_models_dir() -> Path:
+    """Return the persistent directory where AI stem separation models are cached.
+
+    Preserves space on C: by storing models on the same drive as the runtime.
+    """
+    try:
+        from PyQt6.QtCore import QSettings
+
+        settings = QSettings("Devoice", "Devoice")
+        saved = settings.value("models_dir", "")
+        if saved and Path(saved).exists():
+            return Path(saved)
+    except Exception:
+        pass
+
+    runtime_parent = get_runtime_dir().parent
+    cand_models = runtime_parent / "models"
+    if cand_models.exists() or is_directory_writable(cand_models):
+        return cand_models
+
+    app_dir = get_app_dir()
+    if app_dir.drive and app_dir.drive.upper() != "C:":
+        cand_drive = Path(app_dir.drive + "\\") / "Devoice" / "models"
+        if cand_drive.exists() or is_directory_writable(cand_drive):
+            return cand_drive
+
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / "Devoice" / "models"
+    return Path.home() / ".cache" / "devoice" / "models"
+
+
 def setup_runtime_environment(runtime_dir: Path | None = None) -> bool:
     """Inject runtime directory into sys.path and Windows DLL search path.
 
     Must be called before importing torch or heavy ML dependencies.
+    Also redirects TORCH_HOME and HF_HOME away from C: to the chosen drive.
     """
     if runtime_dir is None:
         runtime_dir = get_runtime_dir()
+
+    # Route AI model caches away from C: to the user's chosen drive
+    try:
+        models_dir = get_models_dir()
+        models_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["TORCH_HOME"] = str(models_dir / "torch")
+        os.environ["HF_HOME"] = str(models_dir / "huggingface")
+    except Exception:
+        pass
 
     if not runtime_dir.exists():
         return False

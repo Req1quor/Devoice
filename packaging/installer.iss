@@ -35,6 +35,10 @@ Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
+[Dirs]
+Name: "{app}\runtime"; Permissions: users-full
+Name: "{app}\models"; Permissions: users-full
+
 [Files]
 Source: "..\dist\Devoice\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
