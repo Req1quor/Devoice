@@ -22,6 +22,37 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def ensure_ffmpeg_paths() -> None:
+    """Ensure bundled ffmpeg and ffprobe are on PATH without triggering network downloads."""
+    import shutil
+
+    if shutil.which("ffmpeg") and shutil.which("ffprobe"):
+        return
+
+    candidates = []
+    if getattr(sys, "frozen", False):
+        if hasattr(sys, "_MEIPASS"):
+            candidates.append(Path(sys._MEIPASS) / "win32")
+            candidates.append(Path(sys._MEIPASS))
+        app_dir = Path(sys.executable).parent
+        candidates.append(app_dir / "_internal" / "win32")
+        candidates.append(app_dir / "win32")
+        candidates.append(app_dir)
+    else:
+        root = Path(__file__).resolve().parent.parent
+        candidates.append(root / "dist" / "Devoice" / "_internal" / "win32")
+        candidates.append(root / "dist" / "Devoice" / "win32")
+        candidates.append(root / "packaging" / "win32")
+        candidates.append(root / "packaging")
+
+    for cand in candidates:
+        if cand and (cand / "ffmpeg.exe").exists():
+            cand_str = str(cand.resolve())
+            if cand_str not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = cand_str + os.pathsep + os.environ.get("PATH", "")
+            break
+
+
 def get_app_dir() -> Path:
     """Return the base directory of the Devoice application."""
     if getattr(sys, "frozen", False):

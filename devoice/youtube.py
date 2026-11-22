@@ -7,7 +7,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-import static_ffmpeg
+from devoice.runtime_manager import ensure_ffmpeg_paths
 import yt_dlp
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ def download_youtube_audio(
         Path to the downloaded and converted MP3 file.
     """
     # Ensure static ffmpeg binaries are in PATH
-    static_ffmpeg.add_paths(weak=True)
+    ensure_ffmpeg_paths()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     norm_url = extract_youtube_url(url)

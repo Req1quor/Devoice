@@ -156,6 +156,8 @@ filtered_datas = []
 for item in a.datas:
     source_path = item[0]
     target_path = item[1]
+    if "win32.zip" in target_path.lower():
+        continue
     if any(k in target_path.lower() for k in ("test", "testing", "benchmarks", "__pycache__")):
         continue
     filtered_datas.append(item)

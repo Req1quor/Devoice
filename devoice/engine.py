@@ -26,15 +26,15 @@ from devoice.audio_utils import (
     write_audio_file,
 )
 from devoice.model_manager import ModelManager
-from devoice.runtime_manager import get_models_dir
+from devoice.runtime_manager import ensure_ffmpeg_paths, get_models_dir
 
 logger = logging.getLogger(__name__)
 
 # Ensure portable FFmpeg is on PATH
 try:
-    static_ffmpeg.add_paths(weak=True)
+    ensure_ffmpeg_paths()
 except Exception as exc:
-    logger.warning("Could not add static-ffmpeg paths: %s", exc)
+    logger.warning("Could not add ffmpeg paths: %s", exc)
 
 
 class SeparationEngine:
@@ -95,7 +95,7 @@ class SeparationEngine:
 
     def _init_separator(self):
         """Lazy-initialize audio-separator instance with GPU batch tuning."""
-        static_ffmpeg.add_paths()
+        ensure_ffmpeg_paths()
 
         from audio_separator.separator import Separator
 

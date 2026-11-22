@@ -80,8 +80,8 @@ class StudioSplashScreen(QWidget):
 
     def _on_fade_out_finished(self) -> None:
         self._anim_timer.stop()
-        self.close()
         self.splash_finished.emit()
+        self.close()
 
     def _on_anim_tick(self) -> None:
         self._tick += 0.08
