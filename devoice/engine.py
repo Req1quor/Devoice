@@ -13,7 +13,11 @@ from pathlib import Path
 
 import soundfile as sf
 import static_ffmpeg
-import torch
+
+try:
+    import torch
+except Exception:
+    torch = None
 
 from devoice.audio_utils import (
     DSPRackConfig,
@@ -27,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # Ensure portable FFmpeg is on PATH
 try:
-    static_ffmpeg.add_paths()
+    static_ffmpeg.add_paths(weak=True)
 except Exception as exc:
     logger.warning("Could not add static-ffmpeg paths: %s", exc)
 

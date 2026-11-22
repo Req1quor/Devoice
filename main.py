@@ -1,4 +1,4 @@
-"""Devoice entry point."""
+"""Devoice entry point with dynamic runtime support."""
 
 from __future__ import annotations
 
@@ -9,10 +9,19 @@ from pathlib import Path
 # Required for frozen Windows multiprocessing support
 multiprocessing.freeze_support()
 
+# Register dynamic runtime directory if present
+from devoice.runtime_manager import is_torch_available, setup_runtime_environment
+
+setup_runtime_environment()
+
 # Ensure static ffmpeg is on PATH immediately on launch
 try:
+    if getattr(sys, "frozen", False):
+        meipass_ffmpeg = Path(sys._MEIPASS) / "static_ffmpeg" / "bin" / "win32"
+        if meipass_ffmpeg.exists():
+            os.environ["PATH"] = str(meipass_ffmpeg) + os.pathsep + os.environ.get("PATH", "")
     import static_ffmpeg
-    static_ffmpeg.add_paths()
+    static_ffmpeg.add_paths(weak=True)
 except Exception:
     pass
 
@@ -20,8 +29,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
-from devoice.ui.main_window import MainWindow
-from devoice.ui.splash_screen import StudioSplashScreen
 from devoice.ui.styles import DARK_THEME
 
 
@@ -45,12 +52,29 @@ def main() -> None:
             app.setWindowIcon(QIcon(str(icp)))
             break
 
-    window = MainWindow()
+    # If PyTorch runtime is already present, launch directly with studio splash
+    if is_torch_available():
+        from devoice.ui.main_window import MainWindow
+        from devoice.ui.splash_screen import StudioSplashScreen
 
-    # Studio animated splash screen on launch
-    splash = StudioSplashScreen()
-    splash.splash_finished.connect(window.show)
-    splash.start_animation()
+        window = MainWindow()
+        splash = StudioSplashScreen()
+        splash.splash_finished.connect(window.show)
+        splash.start_animation()
+    else:
+        # First launch onboarding: download the appropriate runtime
+        from devoice.ui.runtime_dialog import RuntimeSetupDialog
+
+        dialog = RuntimeSetupDialog()
+
+        def _on_runtime_ready():
+            from devoice.ui.main_window import MainWindow
+
+            win = MainWindow()
+            win.show()
+
+        dialog.runtime_ready.connect(_on_runtime_ready)
+        dialog.show()
 
     sys.exit(app.exec())
 

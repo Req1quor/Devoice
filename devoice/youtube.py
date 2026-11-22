@@ -64,7 +64,7 @@ def download_youtube_audio(
         Path to the downloaded and converted MP3 file.
     """
     # Ensure static ffmpeg binaries are in PATH
-    static_ffmpeg.add_paths()
+    static_ffmpeg.add_paths(weak=True)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     norm_url = extract_youtube_url(url)
