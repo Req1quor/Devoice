@@ -41,26 +41,30 @@ for pkg in packages_to_collect:
     except Exception:
         pass
 
-# Static FFmpeg binary resolution and collection
+# Static FFmpeg binary resolution and collection (single exact destination)
+ffmpeg_found = False
 try:
     import static_ffmpeg._add_paths as sff
     ffmpeg_exe, ffprobe_exe = sff.get_or_fetch_platform_executables_else_raise()
     if ffmpeg_exe and Path(ffmpeg_exe).exists():
-        binaries.append((str(ffmpeg_exe), "."))
+        binaries.append((str(ffmpeg_exe), "static_ffmpeg/bin/win32"))
+        ffmpeg_found = True
     if ffprobe_exe and Path(ffprobe_exe).exists():
-        binaries.append((str(ffprobe_exe), "."))
+        binaries.append((str(ffprobe_exe), "static_ffmpeg/bin/win32"))
 except Exception:
     pass
 
-# Include local ffmpeg binaries if placed in packaging/ or project root
-for p in [
-    Path("ffmpeg.exe"),
-    Path("ffprobe.exe"),
-    Path("packaging/ffmpeg.exe"),
-    Path("packaging/ffprobe.exe"),
-]:
-    if p.exists():
-        binaries.append((str(p), "."))
+if not ffmpeg_found:
+    for p in [
+        ROOT_DIR / "venv" / "Lib" / "site-packages" / "static_ffmpeg" / "bin" / "win32" / "ffmpeg.exe",
+        ROOT_DIR / "venv" / "Lib" / "site-packages" / "static_ffmpeg" / "bin" / "win32" / "ffprobe.exe",
+        ROOT_DIR / "ffmpeg.exe",
+        ROOT_DIR / "ffprobe.exe",
+        ROOT_DIR / "packaging" / "ffmpeg.exe",
+        ROOT_DIR / "packaging" / "ffprobe.exe",
+    ]:
+        if p.exists():
+            binaries.append((str(p), "static_ffmpeg/bin/win32"))
 
 # Explicit hidden imports to guarantee all dynamic imports are resolved
 hiddenimports = list(set([
@@ -94,7 +98,22 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "onnx.reference", "onnx.reference.ops"],
+    excludes=[
+        "tkinter",
+        "matplotlib",
+        "onnx.reference",
+        "onnx.reference.ops",
+        "torch.distributed",
+        "torch.testing",
+        "torch.utils.tensorboard",
+        "pytest",
+        "unittest",
+        "IPython",
+        "jupyter",
+        "setuptools",
+        "wheel",
+        "pip",
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -114,6 +133,7 @@ exe = EXE(
     strip=False,
     upx=False,  # UPX often causes issues with large PyTorch DLLs
     console=False,
+    icon=str(ROOT_DIR / "packaging" / "icon.ico"),
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -121,11 +141,38 @@ exe = EXE(
     entitlements_file=None,
 )
 
+# Filter out redundant binaries, debug symbols, and test assets
+filtered_binaries = []
+excluded_binaries_set = {
+    "opengl32sw.dll",             # 21 MB software fallback OpenGL (GPU native used)
+    "Qt6Pdf.dll",                 # 5.5 MB unused PDF engine in PyQt6
+    "onnxruntime_providers_tensorrt.dll", # TensorRT provider unused (we use CUDA provider)
+}
+
+for item in a.binaries:
+    dest_name = Path(item[0]).name
+    if dest_name in excluded_binaries_set:
+        continue
+    # Exclude duplicate ffmpeg in root
+    if dest_name in ("ffmpeg.exe", "ffprobe.exe") and item[1] == ".":
+        continue
+    filtered_binaries.append(item)
+
+# Filter out test suites, documentation, and cached bytecode in datas
+filtered_datas = []
+for item in a.datas:
+    source_path = item[0]
+    target_path = item[1]
+    # Skip test data, translations other than en/fr, and benchmarks
+    if any(k in target_path.lower() for k in ("test", "testing", "benchmarks", "__pycache__")):
+        continue
+    filtered_datas.append(item)
+
 coll = COLLECT(
     exe,
-    a.binaries,
+    filtered_binaries,
     a.zipfiles,
-    a.datas,
+    filtered_datas,
     strip=False,
     upx=False,
     upx_exclude=[],

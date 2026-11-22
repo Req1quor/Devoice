@@ -30,6 +30,7 @@ from devoice.audio_utils import AudioDiagnostic, DSPRackConfig, analyze_audio_tr
 from devoice.engine import ModelManager, SeparationEngine
 from devoice.ui.audio_player import AudioPreviewPlayer
 from devoice.ui.drop_zone import DropZone
+from devoice.ui.window_effects import apply_windows_dark_titlebar
 from devoice.worker import ReprocessWorker, SeparationWorker, YouTubeDownloadWorker
 from devoice.youtube import extract_youtube_url, is_youtube_url
 
@@ -71,6 +72,16 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._update_device_label()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # Apply Windows 11/10 dark immersive titlebar styling matching #09090b
+        apply_windows_dark_titlebar(
+            int(self.winId()),
+            bg_color=(9, 9, 11),
+            text_color=(244, 244, 245),
+            border_color=(39, 39, 42),
+        )
 
     def _build_ui(self) -> None:
         central = QWidget()
