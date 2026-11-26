@@ -79,12 +79,19 @@ def get_runtime_dir() -> Path:
     filling up the C: system disk with CUDA and PyTorch.
 
     Order of resolution:
-    1. Saved path in Windows registry / QSettings ("runtime_dir").
-    2. Candidate next to the application (e.g. E:\\Programmes\\Devoice\\runtime).
+    1. Candidate next to the application (e.g. {app}\\runtime from installer).
+    2. Saved path in Windows registry / QSettings ("runtime_dir").
     3. Dedicated folder on the application drive (e.g. E:\\Devoice\\runtime).
     4. Fallback to %LOCALAPPDATA%\\Devoice\\runtime if no other drive is writable.
     """
-    # 1. User setting from QSettings registry
+    app_dir = get_app_dir()
+
+    # 1. First priority: Bundled runtime right next to Devoice.exe
+    cand_app = app_dir / "runtime"
+    if cand_app.exists() and (cand_app / "torch").exists():
+        return cand_app
+
+    # 2. User setting from QSettings registry
     try:
         from PyQt6.QtCore import QSettings
 
@@ -96,13 +103,6 @@ def get_runtime_dir() -> Path:
                 return p
     except Exception:
         pass
-
-    app_dir = get_app_dir()
-
-    # 2. Check if runtime already exists next to the app
-    cand_app = app_dir / "runtime"
-    if cand_app.exists() and (cand_app / "torch").exists():
-        return cand_app
 
     # 3. Check if installed on a non-C drive (e.g. E:\Devoice\runtime)
     if app_dir.drive and app_dir.drive.upper() != "C:":
@@ -215,7 +215,17 @@ def is_torch_available() -> bool:
 
         _ = torch.__version__
         return True
-    except Exception:
+    except Exception as e:
+        import traceback
+
+        err = f"is_torch_available exception: {e}\n{traceback.format_exc()}"
+        logger.error(err)
+        try:
+            log_p = Path.home() / ".cache" / "devoice" / "torch_error.log"
+            log_p.parent.mkdir(parents=True, exist_ok=True)
+            log_p.write_text(err, encoding="utf-8")
+        except Exception:
+            pass
         return False
 
 

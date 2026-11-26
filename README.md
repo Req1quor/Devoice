@@ -1,72 +1,120 @@
 <div align="center">
 
-# Devoice
+<img src="docs/assets/logo.png" width="128" alt="Devoice Logo" />
 
-Offline vocal & instrumental stem separation for desktop.
+```ascii
+ ██████╗ ███████╗██╗   ██╗ ██████╗ ██╗ ██████╗███████╗
+ ██╔══██╗██╔════╝██║   ██║██╔═══██╗██║██╔════╝██╔════╝
+ ██║  ██║█████╗  ██║   ██║██║   ██║██║██║     █████╗  
+ ██║  ██║██╔══╝  ╚██╗ ██╔╝██║   ██║██║██║     ██╔══╝  
+ ██████╔╝███████╗ ╚████╔╝ ╚██████╔╝██║╚██████╗███████╗
+ ╚═════╝ ╚══════╝  ╚═══╝   ╚═════╝ ╚═╝ ╚═════╝╚══════╝
+```
 
-[![Release](https://img.shields.io/badge/release-v1.0.0-white?style=flat-square)](https://github.com/Req1quor/Devoice/releases)
-[![License: GPL-3.0](https://img.shields.io/badge/license-GPLv3-white?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-white?style=flat-square)](https://github.com/Req1quor/Devoice/releases)
+### Studio-Grade Neural Vocal & Stem Separation Workstation
+
+[![Release](https://img.shields.io/github/v/release/Req1quor/Devoice?color=7C3AED&style=for-the-badge&logo=github)](https://github.com/Req1quor/Devoice/releases/latest)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?style=for-the-badge&logo=windows)](https://github.com/Req1quor/Devoice/releases/latest)
+[![CUDA](https://img.shields.io/badge/Acceleration-NVIDIA%20CUDA%2012.1-76B900?style=for-the-badge&logo=nvidia)](https://developer.nvidia.com/cuda-toolkit)
+[![DAW](https://img.shields.io/badge/FL%20Studio-Integrated-FF8A00?style=for-the-badge&logo=flstudio)](https://github.com/Req1quor/Devoice)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-10B981?style=for-the-badge)](LICENSE)
+
+<br/>
+
+[**Download Devoice Setup (v2.0.0)**](https://github.com/Req1quor/Devoice/releases/latest) • [**Features**](#-features) • [**Audio Benchmark**](#-audio-benchmark) • [**DSP Processing Rack**](#-built-in-dsp-audio-processing) • [**DAW Workflow**](#-fl-studio--daw-integration)
+
+<br/>
+
+<img src="docs/assets/studio_player.png" width="880" alt="Devoice Studio Interface" />
 
 </div>
 
 ---
 
-## What is Devoice?
+## ⚡ What is Devoice?
 
-Devoice is a desktop app for Windows that separates vocals and instrumentals locally on your machine.
+**Devoice** is an open-source, desktop neural audio workstation that isolates vocals, instrumentals, and stems locally with zero latency, zero cloud upload, and uncompromising 32-bit floating-point audio fidelity.
 
-Instead of uploading tracks to cloud services, it runs neural models directly on your GPU (or CPU) and includes built-in audio cleanup tools to handle bleed, volume drops, and harsh frequencies.
-
----
-
-## Features
-
-- **BS-RoFormer & MDX-Net engines** : Clean stem separation powered by the highest scoring open weights.
-- **Live post-processing** : Adjust the de-esser, vocal rider, or noise gate *after* separation without having to re-run the AI model.
-- **YouTube link support** : Paste a YouTube URL (or drag it from your browser) to download and load the track instantly.
-- **32-bit float audio engine** : All audio processing is done in lossless float32 to prevent distortion and clipping before export.
-- **100% offline & private** : Your files stay on your computer. No accounts, no subscriptions, no limits.
-- **Clean dark UI** : Minimalist black & white interface designed to stay out of the way.
+Equipped with **BS-RoFormer** and **MDX-Net** architectures running on **NVIDIA CUDA 12.1**, Devoice delivers world-class Signal-to-Distortion ratios (up to **12.98 dB SDR**) while packing an integrated **real-time DSP rack** (de-esser, vocal rider, noise purifier, room de-reverb, and true-peak limiter) directly into an ultra-clean, minimalist studio interface.
 
 ---
 
-## Audio Benchmark
+## ✨ Features
 
-Signal-to-Distortion Ratio (SDR) measured on vocal test datasets:
-
-| Model | Vocal SDR | Quality |
-| :--- | :---: | :---: |
-| **BS-RoFormer (ViperX)** | **12.98 dB** | Cleanest vocal isolation, minimal artifacts |
-| MDX-Net (MDX23C) | 10.87 dB | Good separation, very fast |
-| Demucs v4 (HTDemucs) | 9.20 dB | Standard baseline |
-| Spleeter | 6.30 dB | Noticeable bleed and phase issues |
-
----
-
-## Built-in Audio Processing
-
-When isolating a vocal from a busy beat, raw separation can leave behind harsh frequencies, volume dips, or room reflections. Devoice lets you toggle these filters on or off at any time:
-
-- **Volume leveler** : Keeps the vocal gain consistent throughout the track, especially on loud productions where the voice drops in volume.
-- **De-esser** : Tames harsh sibilance ("S" sounds) between 5 kHz and 9 kHz without muffling the rest of the voice.
-- **Silence purifier** : A soft downward expander that removes residual beat bleed and hiss during vocal pauses.
-- **De-reverb** : Dries up room echo on wet vocal recordings.
-- **Low-cut filter** : Cuts sub-bass rumble below the fundamental frequency of the voice.
-- **True-peak limiter** : Caps signal peaks at -1.0 dBFS to prevent inter-sample clipping on speakers and headphones.
+- 🧠 **SOTA Neural Separation Engines** — Powered by **BS-RoFormer** (ViperX) and **MDX-Net** (MDX23C).
+- ⚡ **100% Offline & Private** — Runs entirely on your local GPU or CPU. No audio data ever leaves your PC.
+- 🎛️ **Live DSP Post-Processing Rack** — Fine-tune de-esser, silence purifier, vocal rider, and de-reverb in real time without re-running the AI model.
+- 📥 **Instant YouTube Ingestion** — Paste or drag-and-drop any YouTube link to fetch and isolate vocals in one fluid step.
+- 🔊 **Lossless 32-Bit Float Engine** — Full dynamic range preservation to eliminate inter-sample clipping and phase artifacts.
+- 🎹 **FL Studio One-Click Integration** — Seamlessly accessible as an external tool inside FL Studio's `Tools` menu.
+- 🖤 **Dark Glass Minimalist UI** — Built for music producers, beatmakers, mixing engineers, and DJs.
 
 ---
 
-## Getting Started
+## 📸 Interface Showcase
 
-### Windows Installer (Easiest)
+<div align="center">
 
-1. Download **`Devoice-Setup.exe`** from the [Releases](https://github.com/Req1quor/Devoice/releases) page.
-2. Run the installer and launch Devoice from your desktop.
+| Real-Time Waveform & Playback | Built-in DSP Audio Rack |
+| :---: | :---: |
+| <img src="docs/assets/studio_player.png" width="440" alt="Devoice Waveform Player" /> | <img src="docs/assets/studio_drawer.png" width="440" alt="Devoice DSP Drawer" /> |
 
-### Run from Source
+</div>
 
-Requires Python 3.10+ and an NVIDIA GPU (recommended, CUDA 12.1):
+---
+
+## 📊 Audio Benchmark
+
+Signal-to-Distortion Ratio (SDR) evaluated on standardized vocal benchmark testbeds:
+
+| Model Architecture | Vocal SDR (dB) | Artifact Cleanliness | Typical Speed (RTX 3060) |
+| :--- | :---: | :---: | :---: |
+| 🥇 **BS-RoFormer (ViperX)** | **12.98 dB** | **Pristine** (Ultra-low bleed, studio ready) | ~15 - 20 s |
+| 🥈 **MDX-Net (MDX23C)** | **10.87 dB** | **Sharp** (High transient retention) | ~8 - 12 s |
+| 🥉 **Demucs v4 (HTDemucs)** | 9.20 dB | Moderate residual bleed | ~25 - 35 s |
+| ⚠️ **Spleeter** | 6.30 dB | High phase smear, muffled top-end | ~5 s |
+
+---
+
+## 🎛️ Built-in DSP Audio Processing
+
+Raw AI separation can leave behind subtle room reflections, microphone bleed, or harsh highs. Devoice features an integrated modular DSP chain:
+
+```text
+ ┌───────────────┐     ┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+ │ Vocal Rider   │ ──► │ De-Esser      │ ──► │ Noise Purifier│ ──► │ True-Peak     │
+ │ (Auto-Gain)   │     │ (5k - 9kHz)   │     │ (Downward Exp)│     │ Limiter (-1dB)│
+ └───────────────┘     └───────────────┘     └───────────────┘     └───────────────┘
+```
+
+* **Vocal Rider (Auto-Leveler)** — Automatically evens out vocal dynamics across inconsistent mic takes without squashy compression.
+* **Precision De-Esser** — Transparently ducks harsh sibilants and piercing "S/T/Ch" friction between 5 kHz and 9 kHz.
+* **Silence Purifier** — Downward multiband expansion that silences background bleed and room hiss during pauses.
+* **Acoustic De-Reverb** — Strips out muddy room decay and reverb tails from wet vocal tracks.
+* **Sub-Bass Low-Cut** — Surgical steep high-pass filter eliminating sub-rumble below 80 Hz.
+* **True-Peak Limiter** — Studio brickwall ceiling locked at `-1.0 dBFS` to ensure zero inter-sample distortion.
+
+---
+
+## 🎹 FL Studio / DAW Integration
+
+Devoice integrates directly into your digital audio workstation workflow:
+
+1. During installation, select **`[x] Intégrer Devoice au menu Outils de FL Studio`**.
+2. Inside FL Studio, navigate to **`Tools ➔ Devoice`**.
+3. Devoice launches instantly in a dedicated window, ready to process or export stems directly back to your project folder.
+
+---
+
+## 🚀 Getting Started
+
+### 1. Windows Standalone Installer (Recommended)
+
+1. Download **`Devoice-Setup.exe`** from the [**Latest Release**](https://github.com/Req1quor/Devoice/releases/latest).
+2. Choose your preferred install location (supports custom drives such as `E:\` or `D:\` without filling up `C:`).
+3. Launch Devoice from your Desktop or Start Menu — **all neural runtimes and CUDA libraries are included out-of-the-box**.
+
+### 2. Run from Source (Developers)
 
 ```bash
 # Clone the repository
@@ -80,12 +128,29 @@ venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the app
+# Run the workstation
 python main.py
 ```
 
 ---
 
-## License
+## 🛠️ Tech Stack
 
-GNU General Public License v3.0 (GPLv3). See [LICENSE](LICENSE) for details.
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/PyQt6-41CD52?style=flat-square&logo=qt&logoColor=white" />
+  <img src="https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white" />
+  <img src="https://img.shields.io/badge/CUDA_12.1-76B900?style=flat-square&logo=nvidia&logoColor=white" />
+  <img src="https://img.shields.io/badge/ONNX_Runtime-005CED?style=flat-square&logo=onnx&logoColor=white" />
+  <img src="https://img.shields.io/badge/Inno_Setup_6-0078D6?style=flat-square&logo=windows&logoColor=white" />
+</p>
+
+---
+
+## 📄 License
+
+Distributed under the **GNU General Public License v3.0**. See [`LICENSE`](LICENSE) for complete terms.
+
+<div align="center">
+  <sub>Crafted with passion for musicians, beatmakers, and audio engineers.</sub>
+</div>

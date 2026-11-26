@@ -43,6 +43,7 @@ def main() -> None:
         app = QApplication(sys.argv)
         app.setApplicationName("Devoice")
         app.setStyleSheet(DARK_THEME)
+        app.setQuitOnLastWindowClosed(False)
 
         # Retain root window reference to prevent Python GC from releasing it
         app.main_window = None
@@ -73,6 +74,7 @@ def main() -> None:
                 window.show()
                 window.raise_()
                 window.activateWindow()
+                app.setQuitOnLastWindowClosed(True)
 
             splash.splash_finished.connect(_on_splash_done)
             splash.start_animation()
@@ -91,6 +93,7 @@ def main() -> None:
                 win.show()
                 win.raise_()
                 win.activateWindow()
+                app.setQuitOnLastWindowClosed(True)
 
             dialog.runtime_ready.connect(_on_runtime_ready)
             dialog.show()
