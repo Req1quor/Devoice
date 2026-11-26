@@ -3,16 +3,18 @@
 <img src="docs/assets/logo.png" width="110" alt="Devoice Logo" />
 
 <pre align="center">
-               · · ·  |  ||  |||||  |||||||  |||||  ||  |  · · ·
-
-  ██████╗  ███████╗ ██╗   ██╗  ██████╗  ██╗  ██████╗ ███████╗
-  ██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██║ ██╔════╝ ██╔════╝
-  ██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██║ ██║      █████╗  
-  ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██║ ██║      ██╔══╝  
-  ██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║ ╚██████╗ ███████╗
-  ╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝  ╚═════╝ ╚══════╝
-
-             [ OFFLINE NEURAL STEM SEPARATION WORKSTATION ]
+┌─────────────────────────────────────────────────────────────────┐
+│       ·  :  |  ||  |||||  |||||||||||  |||||  ||  |  :  ·       │
+│                                                                 │
+│   ██████╗  ███████╗ ██╗   ██╗  ██████╗  ██╗  ██████╗ ███████╗   │
+│   ██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██║ ██╔════╝ ██╔════╝   │
+│   ██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██║ ██║      █████╗     │
+│   ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██║ ██║      ██╔══╝     │
+│   ██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║ ╚██████╗ ███████╗   │
+│   ╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝  ╚═════╝ ╚══════╝   │
+│                                                                 │
+│                [ STUDIO NEURAL STEM SEPARATION ]                │
+└─────────────────────────────────────────────────────────────────┘
 </pre>
 
 <p align="center">
@@ -30,7 +32,7 @@
 <p align="center">
   <a href="https://github.com/Req1quor/Devoice/releases/latest">Download Standalone Installer (v2.0.0)</a> &nbsp;|&nbsp;
   <a href="#overview">Overview</a> &nbsp;|&nbsp;
-  <a href="#workstation-interface">Workstation Interface</a> &nbsp;|&nbsp;
+  <a href="#interface--workflow">Interface & Workflow</a> &nbsp;|&nbsp;
   <a href="#audio-benchmark">Audio Benchmark</a> &nbsp;|&nbsp;
   <a href="#built-in-dsp-audio-rack">DSP Rack</a> &nbsp;|&nbsp;
   <a href="#fl-studio-integration">FL Studio Integration</a>
@@ -38,18 +40,7 @@
 
 <br/>
 
-<table align="center" border="0" cellpadding="8" cellspacing="0">
-  <tr>
-    <td align="center" valign="middle">
-      <img src="docs/assets/splash.png" width="340" alt="Devoice Neural Engine Startup Splash Screen" /><br/>
-      <sub><b>Startup</b> &mdash; Hardware detection & neural weights verification</sub>
-    </td>
-    <td align="center" valign="middle">
-      <img src="docs/assets/app_loaded.png" width="460" alt="Devoice Studio Interface Loaded" /><br/>
-      <sub><b>Active Session</b> &mdash; Neural separation, DSP drawer & waveform player</sub>
-    </td>
-  </tr>
-</table>
+<img src="docs/assets/app_main.png" width="620" alt="Devoice Studio Interface Main Workspace" />
 
 </div>
 
@@ -63,15 +54,33 @@ Equipped with **BS-RoFormer** and **MDX-Net** architectures executed via **NVIDI
 
 ---
 
-## Workstation Interface
+## Interface & Workflow
+
+### 1. Hardware Detection & Neural Initialization
+
+Upon launch, Devoice automatically identifies available GPU acceleration (NVIDIA RTX / GTX via CUDA 12.1) and initializes neural weights in background without blocking the system.
 
 <div align="center">
+  <img src="docs/assets/splash.png" width="460" alt="Devoice Neural Engine Startup Splash Screen" />
+  <p><sub><b>Startup Screen</b> &mdash; Automated hardware detection and neural weight loading.</sub></p>
+</div>
 
-| Idle Workspace | Active Session & Audio Processing Rack |
-| :---: | :---: |
-| <img src="docs/assets/app_idle.png" width="390" alt="Devoice Idle Workspace" /> | <img src="docs/assets/app_loaded.png" width="390" alt="Devoice Active Session with DSP Drawer" /> |
-| *Hardware-accelerated drag-and-drop & YouTube ingestion* | *Post-processing toggles, status feedback & stem preview* |
+### 2. Main Studio Workspace
 
+Audio files can be loaded via drag-and-drop or by pasting a direct YouTube URL. The integrated interface provides instant access to model selection (BS-RoFormer / MDX-Net), lossless export format settings, and one-click separation.
+
+<div align="center">
+  <img src="docs/assets/app_main.png" width="620" alt="Devoice Main Workspace" />
+  <p><sub><b>Main Workspace</b> &mdash; Lossless drop zone, YouTube ingest, model selection, and RTX badge.</sub></p>
+</div>
+
+### 3. Modular DSP Post-Processing Chain
+
+The collapsible options drawer provides surgical control over vocal dynamics, residual bleed suppression, sibilance reduction, room reflections, and sub-bass rumble without requiring neural re-inference.
+
+<div align="center">
+  <img src="docs/assets/app_options.png" width="620" alt="Devoice Post-Processing Options Drawer" />
+  <p><sub><b>DSP Rack Drawer</b> &mdash; Dynamic leveler, noise purifier, de-esser, and de-reverb controls.</sub></p>
 </div>
 
 ---
